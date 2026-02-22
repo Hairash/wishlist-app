@@ -27,3 +27,7 @@ npm run dev
 
 ## CI
 GitHub Actions runs linting and tests for both backend and frontend on pushes and pull requests.
+
+
+## Deployment
+See `docs/deployment.md` for Render + Cloudflare Pages setup and required GitHub Action secrets.
