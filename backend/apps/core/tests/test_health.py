@@ -5,7 +5,7 @@ from rest_framework.test import APIClient
 @pytest.mark.django_db
 def test_healthcheck() -> None:
     client = APIClient()
-    response = client.get('/api/health/')
+    response = client.get("/api/health/")
 
     assert response.status_code == 200
-    assert response.json() == {'status': 'ok'}
+    assert response.json() == {"status": "ok"}
