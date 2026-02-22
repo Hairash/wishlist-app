@@ -17,6 +17,14 @@ from apps.core.serializers import (
     WishlistItemAdminSerializer,
     WishlistItemPublicSerializer,
 )
+from apps.core.throttling import CommentAnonRateThrottle, ReserveAnonRateThrottle
+
+
+def error_response(message: str, status_code: int):
+    return Response(
+        {"error": {"status_code": status_code, "errors": {"detail": message}}},
+        status=status_code,
+    )
 
 
 class HealthCheckView(APIView):
@@ -42,9 +50,9 @@ class AdminSessionView(APIView):
         if not configured_password or not hmac.compare_digest(
             provided_password, configured_password
         ):
-            return Response(
-                {"detail": "Invalid admin password."},
-                status=status.HTTP_401_UNAUTHORIZED,
+            return error_response(
+                "Invalid admin password.",
+                status.HTTP_401_UNAUTHORIZED,
             )
 
         request.session["is_admin_authenticated"] = True
@@ -70,6 +78,7 @@ class WishlistItemsPublicView(APIView):
 
 class ReserveItemView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [ReserveAnonRateThrottle]
 
     def post(self, request, item_id: int):
         item = get_object_or_404(WishlistItem, pk=item_id, is_visible_public=True)
@@ -89,9 +98,9 @@ class ReserveItemView(APIView):
             Reservation.objects.get(item=item)
 
         if not created:
-            return Response(
-                {"detail": "Item is already reserved."},
-                status=status.HTTP_409_CONFLICT,
+            return error_response(
+                "Item is already reserved.",
+                status.HTTP_409_CONFLICT,
             )
 
         response_data = WishlistItemPublicSerializer(
@@ -102,6 +111,7 @@ class ReserveItemView(APIView):
 
 class ItemCommentsView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [CommentAnonRateThrottle]
 
     def get(self, request, item_id: int):
         item = get_object_or_404(WishlistItem, pk=item_id, is_visible_public=True)
@@ -112,9 +122,9 @@ class ItemCommentsView(APIView):
     def post(self, request, item_id: int):
         item = get_object_or_404(WishlistItem, pk=item_id, is_visible_public=True)
         if not item.comments_enabled:
-            return Response(
-                {"detail": "Comments are disabled for this item."},
-                status=status.HTTP_403_FORBIDDEN,
+            return error_response(
+                "Comments are disabled for this item.",
+                status.HTTP_403_FORBIDDEN,
             )
 
         serializer = CommentCreateSerializer(data=request.data)

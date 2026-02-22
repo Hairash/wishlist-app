@@ -57,6 +57,7 @@ def test_reservation_can_only_be_created_once() -> None:
 
     assert first.status_code == 201
     assert second.status_code == 409
+    assert second.json()["error"]["errors"]["detail"] == "Item is already reserved."
     assert Reservation.objects.filter(item=item).count() == 1
 
 
@@ -128,6 +129,7 @@ def test_admin_crud_requires_password_or_authenticated_session() -> None:
         after_logout = client.get("/api/admin/wishlist-items/")
 
     assert unauthorized.status_code == 403
+    assert "error" in unauthorized.json()
     assert login_response.status_code == 200
     assert session_authorized.status_code == 200
     assert header_authorized.status_code == 200
@@ -136,3 +138,122 @@ def test_admin_crud_requires_password_or_authenticated_session() -> None:
     assert update_response.status_code == 200
     assert logout_response.status_code == 204
     assert after_logout.status_code == 403
+
+
+@pytest.mark.django_db
+def test_admin_item_rejects_raw_html_in_markdown() -> None:
+    client = APIClient()
+
+    with override_settings(DEBUG=True):
+        os.environ["ADMIN_PASSWORD"] = "super-secret"
+        client.post(
+            "/api/admin/session/",
+            {"password": "super-secret"},
+            format="json",
+        )
+
+        response = client.post(
+            "/api/admin/wishlist-items/",
+            {"title": "X", "content_markdown": "<script>alert(1)</script>"},
+            format="json",
+        )
+
+    assert response.status_code == 400
+    assert "error" in response.json()
+
+
+@pytest.mark.django_db
+def test_admin_item_rejects_javascript_links_in_metadata() -> None:
+    client = APIClient()
+
+    with override_settings(DEBUG=True):
+        os.environ["ADMIN_PASSWORD"] = "super-secret"
+        client.post(
+            "/api/admin/session/",
+            {"password": "super-secret"},
+            format="json",
+        )
+
+        response = client.post(
+            "/api/admin/wishlist-items/",
+            {
+                "title": "X",
+                "metadata": {"links": ["javascript:alert(1)"]},
+            },
+            format="json",
+        )
+
+    assert response.status_code == 400
+    assert "error" in response.json()
+
+
+@pytest.mark.django_db
+def test_comment_rejects_raw_html_payload() -> None:
+    item = WishlistItem.objects.create(title="Books")
+    client = APIClient()
+
+    response = client.post(
+        f"/api/wishlist-items/{item.id}/comments/",
+        {"text": "<img src=x onerror=alert(1)>"},
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert "error" in response.json()
+
+
+@pytest.mark.django_db
+def test_reserve_endpoint_is_rate_limited() -> None:
+    item1 = WishlistItem.objects.create(title="A")
+    item2 = WishlistItem.objects.create(title="B")
+    client = APIClient()
+
+    with override_settings(
+        REST_FRAMEWORK={
+            "EXCEPTION_HANDLER": "apps.core.exceptions.wishlist_exception_handler",
+            "DEFAULT_THROTTLE_CLASSES": [],
+            "DEFAULT_THROTTLE_RATES": {"reserve": "1/min", "comment": "20/hour"},
+        }
+    ):
+        first = client.post(
+            f"/api/wishlist-items/{item1.id}/reserve/",
+            {},
+            format="json",
+        )
+        second = client.post(
+            f"/api/wishlist-items/{item2.id}/reserve/",
+            {},
+            format="json",
+        )
+
+    assert first.status_code == 201
+    assert second.status_code == 429
+    assert "error" in second.json()
+
+
+@pytest.mark.django_db
+def test_comment_endpoint_is_rate_limited() -> None:
+    item = WishlistItem.objects.create(title="A")
+    client = APIClient()
+
+    with override_settings(
+        REST_FRAMEWORK={
+            "EXCEPTION_HANDLER": "apps.core.exceptions.wishlist_exception_handler",
+            "DEFAULT_THROTTLE_CLASSES": [],
+            "DEFAULT_THROTTLE_RATES": {"reserve": "10/hour", "comment": "1/min"},
+        }
+    ):
+        first = client.post(
+            f"/api/wishlist-items/{item.id}/comments/",
+            {"text": "first"},
+            format="json",
+        )
+        second = client.post(
+            f"/api/wishlist-items/{item.id}/comments/",
+            {"text": "second"},
+            format="json",
+        )
+
+    assert first.status_code == 201
+    assert second.status_code == 429
+    assert "error" in second.json()
