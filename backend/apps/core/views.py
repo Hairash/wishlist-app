@@ -1,3 +1,6 @@
+import hmac
+import os
+
 from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404
 from rest_framework import status
@@ -24,6 +27,36 @@ class HealthCheckView(APIView):
         return Response({"status": "ok"})
 
 
+class AdminSessionView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        return Response(
+            {"is_authenticated": request.session.get("is_admin_authenticated") is True}
+        )
+
+    def post(self, request):
+        configured_password = os.environ.get("ADMIN_PASSWORD", "")
+        provided_password = request.data.get("password", "")
+
+        if not configured_password or not hmac.compare_digest(
+            provided_password, configured_password
+        ):
+            return Response(
+                {"detail": "Invalid admin password."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        request.session["is_admin_authenticated"] = True
+        request.session.save()
+        return Response({"is_authenticated": True})
+
+    def delete(self, request):
+        request.session.pop("is_admin_authenticated", None)
+        request.session.save()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
 class WishlistItemsPublicView(APIView):
     permission_classes = [AllowAny]
 
@@ -47,7 +80,7 @@ class ReserveItemView(APIView):
 
         try:
             with transaction.atomic():
-                reservation, created = Reservation.objects.get_or_create(
+                _reservation, created = Reservation.objects.get_or_create(
                     item=item,
                     defaults={"reserved_by_name": payload.get("reserved_by_name", "")},
                 )
@@ -96,7 +129,7 @@ class AdminWishlistItemsView(APIView):
     permission_classes = [HasAdminPassword]
 
     def get(self, request):
-        queryset = WishlistItem.objects.all().select_related("reservation")
+        queryset = WishlistItem.objects.all()
         serializer = WishlistItemAdminSerializer(queryset, many=True)
         return Response(serializer.data)
 

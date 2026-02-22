@@ -1,4 +1,4 @@
-# API (Step 2)
+# API (Step 4)
 
 Base path: `/api/`
 
@@ -10,14 +10,22 @@ Base path: `/api/`
 - `GET /api/wishlist-items/{id}/comments/` — list comments for an item.
 - `POST /api/wishlist-items/{id}/comments/` — create a comment (`text` required, `author_name` optional).
 
-## Admin endpoints
+## Admin auth/session endpoints
 
-Authentication: send header `X-Admin-Password: <ADMIN_PASSWORD>`.
+- `GET /api/admin/session/` — return `{ "is_authenticated": boolean }` for the current session.
+- `POST /api/admin/session/` — authenticate admin session using payload `{ "password": "..." }`.
+- `DELETE /api/admin/session/` — clear admin session.
 
-- `GET /api/admin/wishlist-items/` — list all items.
+## Admin item endpoints
+
+Authentication: either an authenticated admin session cookie, or header `X-Admin-Password: <ADMIN_PASSWORD>`.
+
+- `GET /api/admin/wishlist-items/` — list all items for admin management.
 - `POST /api/admin/wishlist-items/` — create item.
 - `PATCH /api/admin/wishlist-items/{id}/` — update item fields.
 - `DELETE /api/admin/wishlist-items/{id}/` — delete item.
+
+Admin item responses intentionally exclude reservation/comment data.
 
 ## API schema
 
