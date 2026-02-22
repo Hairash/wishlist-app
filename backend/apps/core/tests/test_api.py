@@ -1,6 +1,7 @@
 import os
 
 import pytest
+from django.core.cache import cache
 from django.test import override_settings
 from rest_framework.test import APIClient
 
@@ -215,6 +216,7 @@ def test_reserve_endpoint_is_rate_limited() -> None:
             "DEFAULT_THROTTLE_RATES": {"reserve": "1/min", "comment": "20/hour"},
         }
     ):
+        cache.clear()
         first = client.post(
             f"/api/wishlist-items/{item1.id}/reserve/",
             {},
@@ -243,6 +245,7 @@ def test_comment_endpoint_is_rate_limited() -> None:
             "DEFAULT_THROTTLE_RATES": {"reserve": "10/hour", "comment": "1/min"},
         }
     ):
+        cache.clear()
         first = client.post(
             f"/api/wishlist-items/{item.id}/comments/",
             {"text": "first"},
