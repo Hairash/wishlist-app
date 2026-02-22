@@ -1,4 +1,4 @@
-# API (Step 4)
+# API (Step 5)
 
 Base path: `/api/`
 
@@ -7,8 +7,10 @@ Base path: `/api/`
 - `GET /api/wishlist-items/` — list publicly visible wishlist items.
 - `POST /api/wishlist-items/{id}/reserve/` — reserve an item (optional `reserved_by_name`).
   - Returns `409` if item is already reserved.
+  - Rate-limited for anonymous traffic (`reserve` throttle scope, default `10/hour`).
 - `GET /api/wishlist-items/{id}/comments/` — list comments for an item.
 - `POST /api/wishlist-items/{id}/comments/` — create a comment (`text` required, `author_name` optional).
+  - Rate-limited for anonymous traffic (`comment` throttle scope, default `20/hour`).
 
 ## Admin auth/session endpoints
 
@@ -26,6 +28,27 @@ Authentication: either an authenticated admin session cookie, or header `X-Admin
 - `DELETE /api/admin/wishlist-items/{id}/` — delete item.
 
 Admin item responses intentionally exclude reservation/comment data.
+
+## Validation and sanitization rules
+
+- `content_markdown` and comment `text` reject raw HTML tags.
+- Markdown/link content rejects dangerous protocols such as `javascript:` and `data:`.
+- `metadata.links` must be an array of valid `http(s)` URLs.
+
+## Error response format
+
+Most API errors are returned as:
+
+```json
+{
+  "error": {
+    "status_code": 400,
+    "errors": {
+      "field": ["message"]
+    }
+  }
+}
+```
 
 ## API schema
 

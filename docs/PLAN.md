@@ -40,7 +40,7 @@ This document captures the agreed implementation roadmap and technical decisions
 
 ---
 
-## Step 2 — Backend domain model and public/admin APIs
+## Step 2 — Backend domain model and public/admin APIs (completed)
 
 ### Scope
 Implement core backend entities and endpoints.
@@ -88,7 +88,7 @@ Implement core backend entities and endpoints.
 
 ---
 
-## Step 3 — Public frontend (visitor experience)
+## Step 3 — Public frontend (visitor experience) (completed)
 
 ### Scope
 Create the public website UX.
@@ -113,7 +113,7 @@ Create the public website UX.
 
 ---
 
-## Step 4 — Admin frontend and session behavior
+## Step 4 — Admin frontend and session behavior (completed)
 
 ### Scope
 Build separate admin path/UI and enforce admin-specific UX rules.
@@ -133,7 +133,7 @@ Build separate admin path/UI and enforce admin-specific UX rules.
 
 ---
 
-## Step 5 — Security, validation, and robustness
+## Step 5 — Security, validation, and robustness (completed)
 
 ### Scope
 Add baseline hardening for MVP production use.
