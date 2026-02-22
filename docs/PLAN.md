@@ -149,7 +149,7 @@ Add baseline hardening for MVP production use.
 
 ---
 
-## Step 6 — Deployment and CI/CD
+## Step 6 — Deployment and CI/CD (completed)
 
 ### Scope
 Deploy MVP and automate build/test/deploy workflows.
@@ -161,7 +161,7 @@ Deploy MVP and automate build/test/deploy workflows.
 
 ### CI/CD
 - PR checks: lint + tests.
-- Main branch: deploy pipeline (once secrets are configured).
+- Main branch: deploy pipeline for Render + Cloudflare Pages (once secrets are configured).
 
 ### Manual actions required from owner
 - Configure hosting projects/accounts.

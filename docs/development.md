@@ -30,3 +30,7 @@ npm run lint
 npm run test
 npm run dev
 ```
+
+### Frontend environment variables
+
+- `VITE_API_BASE_URL`: API base URL used by the frontend (`/api` default for local/same-origin setups).
