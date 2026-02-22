@@ -43,8 +43,6 @@ class WishlistItemPublicSerializer(serializers.ModelSerializer):
 
 
 class WishlistItemAdminSerializer(serializers.ModelSerializer):
-    reservation = ReservationSerializer(read_only=True)
-
     class Meta:
         model = WishlistItem
         fields = [
@@ -57,9 +55,8 @@ class WishlistItemAdminSerializer(serializers.ModelSerializer):
             "comments_enabled",
             "created_at",
             "updated_at",
-            "reservation",
         ]
-        read_only_fields = ["id", "created_at", "updated_at", "reservation"]
+        read_only_fields = ["id", "created_at", "updated_at"]
 
 
 class ReserveItemInputSerializer(serializers.Serializer):

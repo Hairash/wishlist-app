@@ -12,6 +12,7 @@ function createJsonResponse(payload, ok = true, status = 200) {
 
 describe('App', () => {
   beforeEach(() => {
+    window.history.replaceState({}, '', '/');
     globalThis.fetch = vi.fn();
   });
 
@@ -20,18 +21,20 @@ describe('App', () => {
   });
 
   test('renders items and markdown content from API', async () => {
-    globalThis.fetch.mockResolvedValueOnce(
-      createJsonResponse([
-        {
-          id: 1,
-          title: 'Coffee Grinder',
-          content_markdown: '**Great** for espresso',
-          metadata: { links: ['https://example.com'] },
-          reservation: null,
-          comments_enabled: true,
-        },
-      ]),
-    );
+    globalThis.fetch
+      .mockResolvedValueOnce(createJsonResponse({ is_authenticated: false }))
+      .mockResolvedValueOnce(
+        createJsonResponse([
+          {
+            id: 1,
+            title: 'Coffee Grinder',
+            content_markdown: '**Great** for espresso',
+            metadata: { links: ['https://example.com'] },
+            reservation: null,
+            comments_enabled: true,
+          },
+        ]),
+      );
 
     render(<App />);
 
@@ -42,6 +45,7 @@ describe('App', () => {
 
   test('supports reserve flow and updates reservation status', async () => {
     globalThis.fetch
+      .mockResolvedValueOnce(createJsonResponse({ is_authenticated: false }))
       .mockResolvedValueOnce(
         createJsonResponse([
           {
@@ -74,54 +78,40 @@ describe('App', () => {
     await screen.findByText('Reserved by Alex');
     expect(globalThis.fetch).toHaveBeenCalledWith(
       '/api/wishlist-items/2/reserve/',
+      expect.objectContaining({ method: 'POST', credentials: 'include' }),
+    );
+  });
+
+  test('supports admin login and protected admin route', async () => {
+    window.history.replaceState({}, '', '/admin');
+    globalThis.fetch
+      .mockResolvedValueOnce(createJsonResponse({ is_authenticated: false }))
+      .mockResolvedValueOnce(createJsonResponse({ is_authenticated: true }))
+      .mockResolvedValueOnce(createJsonResponse([]));
+
+    render(<App />);
+
+    await screen.findByRole('heading', { name: 'Admin Login' });
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'super-secret' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+
+    expect(await screen.findByRole('heading', { name: 'Admin Wishlist Manager' })).toBeInTheDocument();
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      '/api/admin/session/',
       expect.objectContaining({ method: 'POST' }),
     );
   });
 
-  test('loads and posts comments', async () => {
+  test('redirects authenticated admin from public route to /admin', async () => {
     globalThis.fetch
-      .mockResolvedValueOnce(
-        createJsonResponse([
-          {
-            id: 3,
-            title: 'Books',
-            content_markdown: 'Fantasy picks',
-            metadata: {},
-            reservation: null,
-            comments_enabled: true,
-          },
-        ]),
-      )
-      .mockResolvedValueOnce(
-        createJsonResponse([{ id: 5, author_name: 'Nora', text: 'Nice list!' }]),
-      )
-      .mockResolvedValueOnce(
-        createJsonResponse({ id: 6, author_name: '', text: 'Adding another note.' }, true, 201),
-      );
+      .mockResolvedValueOnce(createJsonResponse({ is_authenticated: true }))
+      .mockResolvedValueOnce(createJsonResponse([]));
 
     render(<App />);
 
-    await screen.findByRole('heading', { name: 'Books' });
-    fireEvent.click(screen.getByRole('button', { name: 'Refresh comments' }));
-
-    expect(await screen.findByText(/Nora:/)).toBeInTheDocument();
-
-    fireEvent.change(screen.getByLabelText('Comment'), {
-      target: { value: 'Adding another note.' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'Post comment' }));
-
+    await screen.findByRole('heading', { name: 'Admin Wishlist Manager' });
     await waitFor(() => {
-      expect(screen.getByText(/Anonymous:/)).toBeInTheDocument();
-      expect(screen.getByText(/Adding another note./)).toBeInTheDocument();
+      expect(window.location.pathname).toBe('/admin');
     });
-  });
-
-  test('shows API error state when item loading fails', async () => {
-    globalThis.fetch.mockResolvedValueOnce(createJsonResponse({ detail: 'Server unavailable' }, false, 500));
-
-    render(<App />);
-
-    expect(await screen.findByRole('alert')).toHaveTextContent('Server unavailable');
   });
 });

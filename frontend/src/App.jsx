@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-const API_BASE = '/api';
 
+const API_BASE = '/api';
 
 function isSafeHttpUrl(value) {
   try {
@@ -67,6 +67,7 @@ async function requestJson(url, options) {
       'Content-Type': 'application/json',
       ...(options?.headers ?? {}),
     },
+    credentials: 'include',
     ...options,
   });
 
@@ -104,7 +105,10 @@ function ItemCard({ item, comments, commentsLoading, commentsError, onReserve, o
 
     try {
       const updatedItem = await onReserve(item.id, name);
-      setReserveState({ status: 'success', message: updatedItem.reservation?.reserved_by_name ? `Reserved by ${updatedItem.reservation.reserved_by_name}` : 'Reserved anonymously' });
+      setReserveState({
+        status: 'success',
+        message: updatedItem.reservation?.reserved_by_name ? `Reserved by ${updatedItem.reservation.reserved_by_name}` : 'Reserved anonymously',
+      });
       setName('');
     } catch (error) {
       setReserveState({ status: 'error', message: error.message });
@@ -225,7 +229,7 @@ function ItemCard({ item, comments, commentsLoading, commentsError, onReserve, o
   );
 }
 
-export function App() {
+function PublicWishlistView() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -233,14 +237,12 @@ export function App() {
 
   useEffect(() => {
     let alive = true;
-
     async function loadItems() {
       try {
         const data = await requestJson(`${API_BASE}/wishlist-items/`);
-        if (!alive) {
-          return;
+        if (alive) {
+          setItems(data);
         }
-        setItems(data);
       } catch (loadError) {
         if (alive) {
           setError(loadError.message);
@@ -259,17 +261,11 @@ export function App() {
   }, []);
 
   async function loadComments(itemId) {
-    setCommentsByItem((current) => ({
-      ...current,
-      [itemId]: { ...(current[itemId] ?? { list: [] }), loading: true, error: '' },
-    }));
+    setCommentsByItem((current) => ({ ...current, [itemId]: { ...(current[itemId] ?? { list: [] }), loading: true, error: '' } }));
 
     try {
       const comments = await requestJson(`${API_BASE}/wishlist-items/${itemId}/comments/`);
-      setCommentsByItem((current) => ({
-        ...current,
-        [itemId]: { list: comments, loading: false, error: '' },
-      }));
+      setCommentsByItem((current) => ({ ...current, [itemId]: { list: comments, loading: false, error: '' } }));
     } catch (loadError) {
       setCommentsByItem((current) => ({
         ...current,
@@ -308,21 +304,15 @@ export function App() {
   }
 
   if (loading) {
-    return <main className="container"><p>Loading wishlist...</p></main>;
+    return <p>Loading wishlist...</p>;
   }
 
   if (error) {
-    return (
-      <main className="container">
-        <h1>Wishlist</h1>
-        <p role="alert">{error}</p>
-      </main>
-    );
+    return <p role="alert">{error}</p>;
   }
 
   return (
-    <main className="container">
-      <h1>Wishlist</h1>
+    <>
       {items.length === 0 && <p>No wishlist items available yet.</p>}
       {items.map((item) => {
         const commentState = commentsByItem[item.id] ?? { list: [], loading: false, error: '' };
@@ -339,6 +329,213 @@ export function App() {
           />
         );
       })}
+    </>
+  );
+}
+
+function AdminPanel({ onLogout }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [formState, setFormState] = useState({ title: '', content_markdown: '', metadata: '{}' });
+
+  async function loadItems() {
+    try {
+      const payload = await requestJson(`${API_BASE}/admin/wishlist-items/`);
+      setItems(payload);
+      setError('');
+    } catch (loadError) {
+      setError(loadError.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadItems();
+  }, []);
+
+  async function handleCreate(event) {
+    event.preventDefault();
+    try {
+      const created = await requestJson(`${API_BASE}/admin/wishlist-items/`, {
+        method: 'POST',
+        body: JSON.stringify({ ...formState, metadata: JSON.parse(formState.metadata || '{}') }),
+      });
+      setItems((current) => [...current, created]);
+      setFormState({ title: '', content_markdown: '', metadata: '{}' });
+    } catch (createError) {
+      setError(createError.message);
+    }
+  }
+
+  async function updateItem(itemId, fields) {
+    const updated = await requestJson(`${API_BASE}/admin/wishlist-items/${itemId}/`, {
+      method: 'PATCH',
+      body: JSON.stringify(fields),
+    });
+    setItems((current) => current.map((item) => (item.id === itemId ? updated : item)));
+  }
+
+  async function deleteItem(itemId) {
+    await requestJson(`${API_BASE}/admin/wishlist-items/${itemId}/`, { method: 'DELETE' });
+    setItems((current) => current.filter((item) => item.id !== itemId));
+  }
+
+  return (
+    <>
+      <div className="admin-header">
+        <h1>Admin Wishlist Manager</h1>
+        <button type="button" onClick={onLogout}>Log out</button>
+      </div>
+      {error && <p role="alert">{error}</p>}
+      <form className="item-card" onSubmit={handleCreate}>
+        <h2>Create item</h2>
+        <label htmlFor="create-title">Title</label>
+        <input id="create-title" required value={formState.title} onChange={(event) => setFormState((s) => ({ ...s, title: event.target.value }))} />
+        <label htmlFor="create-markdown">Markdown description</label>
+        <textarea id="create-markdown" required value={formState.content_markdown} onChange={(event) => setFormState((s) => ({ ...s, content_markdown: event.target.value }))} />
+        <label htmlFor="create-metadata">Metadata JSON</label>
+        <textarea id="create-metadata" value={formState.metadata} onChange={(event) => setFormState((s) => ({ ...s, metadata: event.target.value }))} />
+        <button type="submit">Create</button>
+      </form>
+
+      {loading ? <p>Loading admin items...</p> : null}
+      {items.map((item) => (
+        <AdminItemEditor key={item.id} item={item} onUpdate={updateItem} onDelete={deleteItem} />
+      ))}
+    </>
+  );
+}
+
+function AdminItemEditor({ item, onUpdate, onDelete }) {
+  const [draft, setDraft] = useState({
+    title: item.title,
+    content_markdown: item.content_markdown,
+    metadata: JSON.stringify(item.metadata ?? {}, null, 2),
+  });
+
+  async function handleSave(event) {
+    event.preventDefault();
+    await onUpdate(item.id, {
+      title: draft.title,
+      content_markdown: draft.content_markdown,
+      metadata: JSON.parse(draft.metadata || '{}'),
+    });
+  }
+
+  return (
+    <form className="item-card" onSubmit={handleSave}>
+      <h2>Edit: {item.title}</h2>
+      <label htmlFor={`title-${item.id}`}>Title</label>
+      <input id={`title-${item.id}`} value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} />
+      <label htmlFor={`markdown-${item.id}`}>Markdown</label>
+      <textarea id={`markdown-${item.id}`} value={draft.content_markdown} onChange={(event) => setDraft((current) => ({ ...current, content_markdown: event.target.value }))} />
+      <label htmlFor={`metadata-${item.id}`}>Metadata JSON</label>
+      <textarea id={`metadata-${item.id}`} value={draft.metadata} onChange={(event) => setDraft((current) => ({ ...current, metadata: event.target.value }))} />
+      <div className="admin-actions">
+        <button type="submit">Save</button>
+        <button type="button" onClick={() => onDelete(item.id)}>Delete</button>
+      </div>
+    </form>
+  );
+}
+
+function AdminLogin({ onLogin }) {
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    try {
+      await requestJson(`${API_BASE}/admin/session/`, {
+        method: 'POST',
+        body: JSON.stringify({ password }),
+      });
+      onLogin();
+    } catch (loginError) {
+      setError(loginError.message);
+    }
+  }
+
+  return (
+    <form className="item-card" onSubmit={handleSubmit}>
+      <h1>Admin Login</h1>
+      <label htmlFor="admin-password">Password</label>
+      <input id="admin-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
+      <button type="submit">Sign in</button>
+      {error && <p role="alert">{error}</p>}
+    </form>
+  );
+}
+
+export function App() {
+  const [path, setPath] = useState(window.location.pathname);
+  const [checkingSession, setCheckingSession] = useState(true);
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
+
+  function navigate(nextPath, replace = false) {
+    if (replace) {
+      window.history.replaceState({}, '', nextPath);
+    } else {
+      window.history.pushState({}, '', nextPath);
+    }
+    setPath(nextPath);
+  }
+
+  useEffect(() => {
+    function onPopState() {
+      setPath(window.location.pathname);
+    }
+
+    window.addEventListener('popstate', onPopState);
+    return () => {
+      window.removeEventListener('popstate', onPopState);
+    };
+  }, []);
+
+  useEffect(() => {
+    async function checkSession() {
+      try {
+        const payload = await requestJson(`${API_BASE}/admin/session/`);
+        setIsAdminAuthenticated(payload.is_authenticated === true);
+        if (payload.is_authenticated === true && window.location.pathname === '/') {
+          navigate('/admin', true);
+        }
+      } finally {
+        setCheckingSession(false);
+      }
+    }
+
+    checkSession();
+  }, []);
+
+  async function handleLogout() {
+    await requestJson(`${API_BASE}/admin/session/`, { method: 'DELETE' });
+    setIsAdminAuthenticated(false);
+    navigate('/', true);
+  }
+
+  if (checkingSession) {
+    return <main className="container"><p>Loading...</p></main>;
+  }
+
+  if (path === '/admin') {
+    return (
+      <main className="container">
+        {isAdminAuthenticated ? (
+          <AdminPanel onLogout={handleLogout} />
+        ) : (
+          <AdminLogin onLogin={() => setIsAdminAuthenticated(true)} />
+        )}
+      </main>
+    );
+  }
+
+  return (
+    <main className="container">
+      <h1>Wishlist</h1>
+      <PublicWishlistView />
     </main>
   );
 }

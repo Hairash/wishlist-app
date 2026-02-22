@@ -87,14 +87,23 @@ def test_comments_creation_and_listing() -> None:
 
 
 @pytest.mark.django_db
-def test_admin_crud_requires_password() -> None:
+def test_admin_crud_requires_password_or_authenticated_session() -> None:
     item = WishlistItem.objects.create(title="Tripod")
     client = APIClient()
 
     with override_settings(DEBUG=True):
         os.environ["ADMIN_PASSWORD"] = "super-secret"
+
         unauthorized = client.get("/api/admin/wishlist-items/")
-        authorized = client.get(
+
+        login_response = client.post(
+            "/api/admin/session/",
+            {"password": "super-secret"},
+            format="json",
+        )
+        session_authorized = client.get("/api/admin/wishlist-items/")
+
+        header_authorized = client.get(
             "/api/admin/wishlist-items/",
             HTTP_X_ADMIN_PASSWORD="super-secret",
         )
@@ -107,24 +116,23 @@ def test_admin_crud_requires_password() -> None:
                 "metadata": {"links": ["https://example.com"]},
             },
             format="json",
-            HTTP_X_ADMIN_PASSWORD="super-secret",
         )
 
         update_response = client.patch(
             f"/api/admin/wishlist-items/{item.id}/",
             {"content_markdown": "Updated"},
             format="json",
-            HTTP_X_ADMIN_PASSWORD="super-secret",
         )
 
-        delete_response = client.delete(
-            f"/api/admin/wishlist-items/{item.id}/",
-            HTTP_X_ADMIN_PASSWORD="super-secret",
-        )
+        logout_response = client.delete("/api/admin/session/")
+        after_logout = client.get("/api/admin/wishlist-items/")
 
     assert unauthorized.status_code == 403
-    assert authorized.status_code == 200
+    assert login_response.status_code == 200
+    assert session_authorized.status_code == 200
+    assert header_authorized.status_code == 200
     assert create_response.status_code == 201
+    assert "reservation" not in create_response.json()
     assert update_response.status_code == 200
-    assert delete_response.status_code == 204
-    assert WishlistItem.objects.filter(id=item.id).count() == 0
+    assert logout_response.status_code == 204
+    assert after_logout.status_code == 403

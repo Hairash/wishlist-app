@@ -2,6 +2,7 @@ from django.urls import path
 from rest_framework.schemas import get_schema_view
 
 from apps.core.views import (
+    AdminSessionView,
     AdminWishlistItemDetailView,
     AdminWishlistItemsView,
     HealthCheckView,
@@ -25,6 +26,7 @@ urlpatterns = [
         ItemCommentsView.as_view(),
         name="wishlist-item-comments",
     ),
+    path("admin/session/", AdminSessionView.as_view(), name="admin-session"),
     path(
         "admin/wishlist-items/",
         AdminWishlistItemsView.as_view(),
