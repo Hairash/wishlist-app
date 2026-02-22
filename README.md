@@ -1,2 +1,2 @@
-# whishlist-app
+# wishlist-app
 Simple wishlist app
