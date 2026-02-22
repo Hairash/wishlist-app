@@ -9,10 +9,69 @@ body {
 }
 
 .container {
-  margin: 4rem auto;
-  max-width: 720px;
+  margin: 2rem auto;
+  max-width: 900px;
   padding: 1.5rem;
+}
+
+.item-card {
   background: #ffffff;
   border-radius: 12px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.07);
+  padding: 1rem 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.item-section {
+  margin-top: 1rem;
+  border-top: 1px solid #e8edf3;
+  padding-top: 0.75rem;
+}
+
+.markdown p {
+  margin: 0.4rem 0;
+}
+
+input,
+textarea,
+button {
+  display: block;
+  margin-top: 0.35rem;
+  margin-bottom: 0.6rem;
+  width: 100%;
+  max-width: 420px;
+  font: inherit;
+}
+
+textarea {
+  min-height: 90px;
+}
+
+button {
+  width: auto;
+  padding: 0.45rem 0.8rem;
+  cursor: pointer;
+}
+
+.comments-heading {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.comments-list,
+.item-links {
+  padding-left: 1.1rem;
+}
+
+.item-images {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.item-images img {
+  width: 180px;
+  max-width: 100%;
+  border-radius: 8px;
 }
