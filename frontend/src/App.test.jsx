@@ -100,6 +100,13 @@ describe('App', () => {
       '/api/admin/session/',
       expect.objectContaining({ method: 'POST' }),
     );
+    expect(globalThis.fetch).toHaveBeenLastCalledWith(
+      '/api/admin/wishlist-items/',
+      expect.objectContaining({
+        credentials: 'include',
+        headers: expect.objectContaining({ 'Content-Type': 'application/json' }),
+      }),
+    );
   });
 
   test('redirects authenticated admin from public route to /admin', async () => {
@@ -114,4 +121,5 @@ describe('App', () => {
       expect(window.location.pathname).toBe('/admin');
     });
   });
+
 });

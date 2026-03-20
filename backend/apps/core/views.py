@@ -55,6 +55,7 @@ class AdminSessionView(APIView):
                 status.HTTP_401_UNAUTHORIZED,
             )
 
+        request.session.cycle_key()
         request.session["is_admin_authenticated"] = True
         request.session.save()
         return Response({"is_authenticated": True})

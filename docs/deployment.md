@@ -17,10 +17,11 @@ This project deploys with:
   - `ADMIN_PASSWORD`
   - `RESERVE_RATE_LIMIT` (optional override)
   - `COMMENT_RATE_LIMIT` (optional override)
+  - `CORS_ALLOWED_ORIGINS=https://<your-cloudflare-pages-domain>`
   - `SESSION_COOKIE_SECURE=true`
   - `CSRF_COOKIE_SECURE=true`
-  - `SESSION_COOKIE_SAMESITE=Lax`
-  - `CSRF_COOKIE_SAMESITE=Lax`
+  - `SESSION_COOKIE_SAMESITE=None`
+  - `CSRF_COOKIE_SAMESITE=None`
 5. Copy the Render Deploy Hook URL.
 
 ## 2) Frontend deployment (Cloudflare Pages)
@@ -33,6 +34,7 @@ This project deploys with:
   - Build output directory: `dist`
 3. Add environment variable:
   - `VITE_API_BASE_URL` set to your production backend API base, e.g. `https://your-backend.example.com/api`
+  - No frontend auth token or password env var is needed for admin login; auth uses the Django session cookie.
 4. Note your Cloudflare account ID and Pages project name.
 
 ## 3) GitHub secrets required for automated deploys
