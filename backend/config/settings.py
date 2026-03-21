@@ -3,6 +3,11 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+
+def env_bool(name: str, default: bool = False) -> bool:
+    return os.environ.get(name, str(default)).lower() == "true"
+
+
 SECRET_KEY = "dev-secret-key"
 DEBUG = True
 ALLOWED_HOSTS: list[str] = ["*"]
@@ -77,13 +82,15 @@ REST_FRAMEWORK = {
 }
 
 SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SAMESITE = os.environ.get("SESSION_COOKIE_SAMESITE", "Lax")
 CSRF_COOKIE_HTTPONLY = False
-CSRF_COOKIE_SAMESITE = os.environ.get("CSRF_COOKIE_SAMESITE", "Lax")
-SESSION_COOKIE_SECURE = (
-    os.environ.get("SESSION_COOKIE_SECURE", "false").lower() == "true"
+SESSION_COOKIE_SECURE = env_bool("SESSION_COOKIE_SECURE", False)
+CSRF_COOKIE_SECURE = env_bool("CSRF_COOKIE_SECURE", False)
+SESSION_COOKIE_SAMESITE = os.environ.get(
+    "SESSION_COOKIE_SAMESITE", "None" if SESSION_COOKIE_SECURE else "Lax"
 )
-CSRF_COOKIE_SECURE = os.environ.get("CSRF_COOKIE_SECURE", "false").lower() == "true"
+CSRF_COOKIE_SAMESITE = os.environ.get(
+    "CSRF_COOKIE_SAMESITE", "None" if CSRF_COOKIE_SECURE else "Lax"
+)
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 

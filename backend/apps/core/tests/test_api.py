@@ -89,7 +89,7 @@ def test_comments_creation_and_listing() -> None:
 
 
 @pytest.mark.django_db
-def test_admin_crud_requires_password_or_authenticated_session() -> None:
+def test_admin_crud_requires_authenticated_session() -> None:
     item = WishlistItem.objects.create(title="Tripod")
     client = APIClient()
 
@@ -104,11 +104,6 @@ def test_admin_crud_requires_password_or_authenticated_session() -> None:
             format="json",
         )
         session_authorized = client.get("/api/admin/wishlist-items/")
-
-        header_authorized = client.get(
-            "/api/admin/wishlist-items/",
-            HTTP_X_ADMIN_PASSWORD="super-secret",
-        )
 
         create_response = client.post(
             "/api/admin/wishlist-items/",
@@ -133,12 +128,23 @@ def test_admin_crud_requires_password_or_authenticated_session() -> None:
     assert "error" in unauthorized.json()
     assert login_response.status_code == 200
     assert session_authorized.status_code == 200
-    assert header_authorized.status_code == 200
     assert create_response.status_code == 201
     assert "reservation" not in create_response.json()
     assert update_response.status_code == 200
     assert logout_response.status_code == 204
     assert after_logout.status_code == 403
+
+
+@pytest.mark.django_db
+def test_admin_session_status_is_false_without_session() -> None:
+    client = APIClient()
+
+    with override_settings(DEBUG=True):
+        os.environ["ADMIN_PASSWORD"] = "super-secret"
+        response = client.get("/api/admin/session/")
+
+    assert response.status_code == 200
+    assert response.json() == {"is_authenticated": False}
 
 
 @pytest.mark.django_db
