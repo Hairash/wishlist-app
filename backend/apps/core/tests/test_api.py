@@ -2,6 +2,7 @@ import os
 
 import pytest
 from django.core.cache import cache
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
 from rest_framework.test import APIClient
 
@@ -266,3 +267,67 @@ def test_comment_endpoint_is_rate_limited() -> None:
     assert first.status_code == 201
     assert second.status_code == 429
     assert "error" in second.json()
+
+
+@pytest.mark.django_db
+def test_admin_can_upload_item_images_and_persist_metadata(tmp_path) -> None:
+    item = WishlistItem.objects.create(title="Camera")
+    client = APIClient()
+
+    with override_settings(DEBUG=True, MEDIA_ROOT=tmp_path):
+        os.environ["ADMIN_PASSWORD"] = "super-secret"
+        client.post(
+            "/api/admin/session/",
+            {"password": "super-secret"},
+            format="json",
+        )
+        image_file = SimpleUploadedFile(
+            "photo.jpg",
+            b"fake-jpg-content",
+            content_type="image/jpeg",
+        )
+        response = client.post(
+            f"/api/admin/wishlist-items/{item.id}/images/",
+            {"images": [image_file]},
+            format="multipart",
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert len(payload["metadata"]["images"]) == 1
+    assert "/media/wishlist-images/" in payload["metadata"]["images"][0]
+
+
+@pytest.mark.django_db
+def test_admin_image_upload_rejects_more_than_five_images(tmp_path) -> None:
+    item = WishlistItem.objects.create(
+        title="Speaker",
+        metadata={
+            "images": [f"https://example.com/image-{idx}.jpg" for idx in range(5)]
+        },
+    )
+    client = APIClient()
+
+    with override_settings(DEBUG=True, MEDIA_ROOT=tmp_path):
+        os.environ["ADMIN_PASSWORD"] = "super-secret"
+        client.post(
+            "/api/admin/session/",
+            {"password": "super-secret"},
+            format="json",
+        )
+        image_file = SimpleUploadedFile(
+            "overflow.jpg",
+            b"fake-jpg-content",
+            content_type="image/jpeg",
+        )
+        response = client.post(
+            f"/api/admin/wishlist-items/{item.id}/images/",
+            {"images": [image_file]},
+            format="multipart",
+        )
+
+    assert response.status_code == 400
+    assert (
+        response.json()["error"]["errors"]["detail"]
+        == "You can attach at most 5 images per item."
+    )

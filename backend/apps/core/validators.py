@@ -53,3 +53,37 @@ def validate_metadata_links(metadata: dict[str, Any]) -> dict[str, Any]:
             ) from exc
 
     return metadata
+
+
+def validate_metadata_images(metadata: dict[str, Any]) -> dict[str, Any]:
+    images = metadata.get("images")
+    if images is None:
+        return metadata
+
+    if not isinstance(images, list):
+        raise serializers.ValidationError({"images": "Images must be a list."})
+
+    if len(images) > 5:
+        raise serializers.ValidationError(
+            {"images": "You can attach at most 5 images per item."}
+        )
+
+    for image_url in images:
+        if not isinstance(image_url, str):
+            raise serializers.ValidationError(
+                {"images": "Each image must be a string URL."}
+            )
+
+        if DANGEROUS_PROTOCOL_RE.search(image_url):
+            raise serializers.ValidationError(
+                {"images": "Blocked URL protocol detected."}
+            )
+
+        try:
+            url_validator(image_url)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(
+                {"images": f"Invalid image URL: {image_url}"}
+            ) from exc
+
+    return metadata
