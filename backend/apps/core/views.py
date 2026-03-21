@@ -1,9 +1,11 @@
 import hmac
 import os
 
+from django.core.files.storage import default_storage
 from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404
 from rest_framework import status
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -166,3 +168,45 @@ class AdminWishlistItemDetailView(APIView):
         item = get_object_or_404(WishlistItem, pk=item_id)
         item.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class AdminWishlistItemImagesUploadView(APIView):
+    permission_classes = [HasAdminPassword]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request, item_id: int):
+        item = get_object_or_404(WishlistItem, pk=item_id)
+        files = request.FILES.getlist("images")
+        if not files:
+            return error_response("Please provide at least one image file.", 400)
+
+        metadata = item.metadata if isinstance(item.metadata, dict) else {}
+        existing_images = metadata.get("images", [])
+        if not isinstance(existing_images, list):
+            existing_images = []
+
+        if len(existing_images) + len(files) > 5:
+            return error_response(
+                "You can attach at most 5 images per item.",
+                status.HTTP_400_BAD_REQUEST,
+            )
+
+        uploaded_urls = []
+        for upload in files:
+            if not (upload.content_type or "").startswith("image/"):
+                return error_response(
+                    "Only image files are allowed.",
+                    status.HTTP_400_BAD_REQUEST,
+                )
+            file_path = default_storage.save(
+                f"wishlist-images/{item.id}/{upload.name}",
+                upload,
+            )
+            uploaded_urls.append(
+                request.build_absolute_uri(default_storage.url(file_path))
+            )
+
+        item.metadata = {**metadata, "images": [*existing_images, *uploaded_urls]}
+        item.save(update_fields=["metadata", "updated_at"])
+        serializer = WishlistItemAdminSerializer(item)
+        return Response(serializer.data, status=status.HTTP_200_OK)

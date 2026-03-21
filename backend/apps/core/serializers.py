@@ -1,7 +1,11 @@
 from rest_framework import serializers
 
 from apps.core.models import Comment, Reservation, WishlistItem
-from apps.core.validators import validate_markdown_content, validate_metadata_links
+from apps.core.validators import (
+    validate_markdown_content,
+    validate_metadata_images,
+    validate_metadata_links,
+)
 
 
 class ReservationSerializer(serializers.ModelSerializer):
@@ -63,7 +67,8 @@ class WishlistItemAdminSerializer(serializers.ModelSerializer):
         return validate_markdown_content(value)
 
     def validate_metadata(self, value: dict) -> dict:
-        return validate_metadata_links(value)
+        value = validate_metadata_links(value)
+        return validate_metadata_images(value)
 
 
 class ReserveItemInputSerializer(serializers.Serializer):

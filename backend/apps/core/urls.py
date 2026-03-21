@@ -4,6 +4,7 @@ from rest_framework.schemas import get_schema_view
 from apps.core.views import (
     AdminSessionView,
     AdminWishlistItemDetailView,
+    AdminWishlistItemImagesUploadView,
     AdminWishlistItemsView,
     HealthCheckView,
     ItemCommentsView,
@@ -36,6 +37,11 @@ urlpatterns = [
         "admin/wishlist-items/<int:item_id>/",
         AdminWishlistItemDetailView.as_view(),
         name="admin-item-detail",
+    ),
+    path(
+        "admin/wishlist-items/<int:item_id>/images/",
+        AdminWishlistItemImagesUploadView.as_view(),
+        name="admin-item-images-upload",
     ),
     path(
         "schema/",

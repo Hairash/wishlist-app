@@ -62,11 +62,14 @@ function renderSafeMarkdown(markdown) {
 }
 
 async function requestJson(url, options) {
+  const isFormDataBody = options?.body instanceof FormData;
   const response = await fetch(url, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options?.headers ?? {}),
-    },
+    headers: isFormDataBody
+      ? { ...(options?.headers ?? {}) }
+      : {
+          'Content-Type': 'application/json',
+          ...(options?.headers ?? {}),
+        },
     credentials: 'include',
     ...options,
   });
@@ -382,6 +385,10 @@ function AdminPanel({ onLogout }) {
     setItems((current) => current.filter((item) => item.id !== itemId));
   }
 
+  function replaceItem(updated) {
+    setItems((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+  }
+
   return (
     <>
       <div className="admin-header">
@@ -402,18 +409,22 @@ function AdminPanel({ onLogout }) {
 
       {loading ? <p>Loading admin items...</p> : null}
       {items.map((item) => (
-        <AdminItemEditor key={item.id} item={item} onUpdate={updateItem} onDelete={deleteItem} />
+        <AdminItemEditor key={item.id} item={item} onUpdate={updateItem} onReplace={replaceItem} onDelete={deleteItem} />
       ))}
     </>
   );
 }
 
-function AdminItemEditor({ item, onUpdate, onDelete }) {
+function AdminItemEditor({ item, onUpdate, onReplace, onDelete }) {
   const [draft, setDraft] = useState({
     title: item.title,
     content_markdown: item.content_markdown,
     metadata: JSON.stringify(item.metadata ?? {}, null, 2),
   });
+  const [imageFiles, setImageFiles] = useState([]);
+  const [imageUploadState, setImageUploadState] = useState({ status: 'idle', message: '' });
+  const existingImageCount = Array.isArray(item.metadata?.images) ? item.metadata.images.length : 0;
+  const remainingImageSlots = Math.max(0, 5 - existingImageCount);
 
   async function handleSave(event) {
     event.preventDefault();
@@ -422,6 +433,38 @@ function AdminItemEditor({ item, onUpdate, onDelete }) {
       content_markdown: draft.content_markdown,
       metadata: JSON.parse(draft.metadata || '{}'),
     });
+  }
+
+  async function handleUploadImages(event) {
+    event.preventDefault();
+    if (imageFiles.length === 0) {
+      setImageUploadState({ status: 'error', message: 'Choose at least one image first.' });
+      return;
+    }
+    if (imageFiles.length > remainingImageSlots) {
+      setImageUploadState({
+        status: 'error',
+        message: `You can upload ${remainingImageSlots} more image(s) for this item.`,
+      });
+      return;
+    }
+
+    const formData = new FormData();
+    imageFiles.forEach((file) => formData.append('images', file));
+
+    setImageUploadState({ status: 'loading', message: '' });
+    try {
+      const updated = await requestJson(`${API_BASE}/admin/wishlist-items/${item.id}/images/`, {
+        method: 'POST',
+        body: formData,
+      });
+      onReplace(updated);
+      setDraft((current) => ({ ...current, metadata: JSON.stringify(updated.metadata ?? {}, null, 2) }));
+      setImageFiles([]);
+      setImageUploadState({ status: 'success', message: 'Images uploaded.' });
+    } catch (uploadError) {
+      setImageUploadState({ status: 'error', message: uploadError.message });
+    }
   }
 
   return (
@@ -433,10 +476,23 @@ function AdminItemEditor({ item, onUpdate, onDelete }) {
       <textarea id={`markdown-${item.id}`} value={draft.content_markdown} onChange={(event) => setDraft((current) => ({ ...current, content_markdown: event.target.value }))} />
       <label htmlFor={`metadata-${item.id}`}>Metadata JSON</label>
       <textarea id={`metadata-${item.id}`} value={draft.metadata} onChange={(event) => setDraft((current) => ({ ...current, metadata: event.target.value }))} />
+      <p>Attached images: {existingImageCount}/5</p>
+      <label htmlFor={`images-${item.id}`}>Upload images (max {remainingImageSlots} more)</label>
+      <input
+        id={`images-${item.id}`}
+        type="file"
+        accept="image/*"
+        multiple
+        onChange={(event) => setImageFiles(Array.from(event.target.files ?? []))}
+      />
       <div className="admin-actions">
         <button type="submit">Save</button>
+        <button type="button" onClick={handleUploadImages} disabled={imageUploadState.status === 'loading' || remainingImageSlots === 0}>
+          {imageUploadState.status === 'loading' ? 'Uploading...' : 'Upload image(s)'}
+        </button>
         <button type="button" onClick={() => onDelete(item.id)}>Delete</button>
       </div>
+      {imageUploadState.message && <p role="status">{imageUploadState.message}</p>}
     </form>
   );
 }
