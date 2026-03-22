@@ -1,4 +1,5 @@
 import os
+from unittest.mock import patch
 
 import pytest
 from django.core.cache import cache
@@ -270,74 +271,112 @@ def test_comment_endpoint_is_rate_limited() -> None:
 
 
 @pytest.mark.django_db
-def test_admin_can_upload_item_images_and_persist_metadata(tmp_path) -> None:
+@patch("apps.core.views.cloudinary.uploader.upload")
+def test_admin_can_upload_item_images_and_persist_metadata(mock_upload) -> None:
     item = WishlistItem.objects.create(title="Camera")
     client = APIClient()
+    mock_upload.return_value = {
+        "secure_url": "https://res.cloudinary.com/demo/image/upload/v1/photo.jpg"
+    }
 
-    with override_settings(DEBUG=True, MEDIA_ROOT=tmp_path):
-        os.environ["ADMIN_PASSWORD"] = "super-secret"
-        client.post(
-            "/api/admin/session/",
-            {"password": "super-secret"},
-            format="json",
-        )
-        image_file = SimpleUploadedFile(
-            "photo.jpg",
-            b"fake-jpg-content",
-            content_type="image/jpeg",
-        )
-        response = client.post(
-            f"/api/admin/wishlist-items/{item.id}/images/",
-            {"images": [image_file]},
-            format="multipart",
-        )
+    os.environ["ADMIN_PASSWORD"] = "super-secret"
+    os.environ["CLOUDINARY_URL"] = "cloudinary://key:secret@demo"
+    client.post(
+        "/api/admin/session/",
+        {"password": "super-secret"},
+        format="json",
+    )
+    image_file = SimpleUploadedFile(
+        "photo.jpg",
+        b"fake-jpg-content",
+        content_type="image/jpeg",
+    )
+    response = client.post(
+        f"/api/admin/wishlist-items/{item.id}/images/",
+        {"images": [image_file]},
+        format="multipart",
+    )
 
     assert response.status_code == 200
     payload = response.json()
     assert len(payload["metadata"]["images"]) == 1
-    assert "/media/wishlist-images/" in payload["metadata"]["images"][0]
+    assert payload["metadata"]["images"][0].startswith("https://res.cloudinary.com/")
 
 
 @pytest.mark.django_db
-def test_admin_can_upload_item_images_without_persisting_metadata(tmp_path) -> None:
+@patch("apps.core.views.cloudinary.uploader.upload")
+def test_admin_can_upload_item_images_without_persisting_metadata(mock_upload) -> None:
     item = WishlistItem.objects.create(
         title="Camera",
         metadata={"links": ["https://example.com"]},
     )
     client = APIClient()
+    mock_upload.return_value = {
+        "secure_url": "https://res.cloudinary.com/demo/image/upload/v1/photo.jpg"
+    }
 
-    with override_settings(DEBUG=True, MEDIA_ROOT=tmp_path):
-        os.environ["ADMIN_PASSWORD"] = "super-secret"
-        client.post(
-            "/api/admin/session/",
-            {"password": "super-secret"},
-            format="json",
-        )
-        image_file = SimpleUploadedFile(
-            "photo.jpg",
-            b"fake-jpg-content",
-            content_type="image/jpeg",
-        )
-        response = client.post(
-            f"/api/admin/wishlist-items/{item.id}/images/",
-            {
-                "images": [image_file],
-                "persist_metadata": "false",
-                "existing_image_count": "0",
-            },
-            format="multipart",
-        )
+    os.environ["ADMIN_PASSWORD"] = "super-secret"
+    os.environ["CLOUDINARY_URL"] = "cloudinary://key:secret@demo"
+    client.post(
+        "/api/admin/session/",
+        {"password": "super-secret"},
+        format="json",
+    )
+    image_file = SimpleUploadedFile(
+        "photo.jpg",
+        b"fake-jpg-content",
+        content_type="image/jpeg",
+    )
+    response = client.post(
+        f"/api/admin/wishlist-items/{item.id}/images/",
+        {
+            "images": [image_file],
+            "persist_metadata": "false",
+            "existing_image_count": "0",
+        },
+        format="multipart",
+    )
 
     assert response.status_code == 200
     payload = response.json()
     assert len(payload["urls"]) == 1
-    assert "/media/wishlist-images/" in payload["urls"][0]
+    assert payload["urls"][0].startswith("https://res.cloudinary.com/")
     item.refresh_from_db()
     assert item.metadata == {"links": ["https://example.com"]}
 
 
 @pytest.mark.django_db
-def test_admin_image_upload_rejects_more_than_five_images(tmp_path) -> None:
+def test_admin_image_upload_requires_cloudinary_configuration() -> None:
+    item = WishlistItem.objects.create(title="Camera")
+    client = APIClient()
+
+    os.environ["ADMIN_PASSWORD"] = "super-secret"
+    os.environ.pop("CLOUDINARY_URL", None)
+    client.post(
+        "/api/admin/session/",
+        {"password": "super-secret"},
+        format="json",
+    )
+    image_file = SimpleUploadedFile(
+        "photo.jpg",
+        b"fake-jpg-content",
+        content_type="image/jpeg",
+    )
+    response = client.post(
+        f"/api/admin/wishlist-items/{item.id}/images/",
+        {"images": [image_file]},
+        format="multipart",
+    )
+
+    assert response.status_code == 503
+    assert (
+        response.json()["error"]["errors"]["detail"]
+        == "Image uploads are not configured."
+    )
+
+
+@pytest.mark.django_db
+def test_admin_image_upload_rejects_more_than_five_images() -> None:
     item = WishlistItem.objects.create(
         title="Speaker",
         metadata={
@@ -346,23 +385,23 @@ def test_admin_image_upload_rejects_more_than_five_images(tmp_path) -> None:
     )
     client = APIClient()
 
-    with override_settings(DEBUG=True, MEDIA_ROOT=tmp_path):
-        os.environ["ADMIN_PASSWORD"] = "super-secret"
-        client.post(
-            "/api/admin/session/",
-            {"password": "super-secret"},
-            format="json",
-        )
-        image_file = SimpleUploadedFile(
-            "overflow.jpg",
-            b"fake-jpg-content",
-            content_type="image/jpeg",
-        )
-        response = client.post(
-            f"/api/admin/wishlist-items/{item.id}/images/",
-            {"images": [image_file]},
-            format="multipart",
-        )
+    os.environ["ADMIN_PASSWORD"] = "super-secret"
+    os.environ["CLOUDINARY_URL"] = "cloudinary://key:secret@demo"
+    client.post(
+        "/api/admin/session/",
+        {"password": "super-secret"},
+        format="json",
+    )
+    image_file = SimpleUploadedFile(
+        "overflow.jpg",
+        b"fake-jpg-content",
+        content_type="image/jpeg",
+    )
+    response = client.post(
+        f"/api/admin/wishlist-items/{item.id}/images/",
+        {"images": [image_file]},
+        format="multipart",
+    )
 
     assert response.status_code == 400
     assert (

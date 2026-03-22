@@ -15,6 +15,7 @@ pytest
 ### Backend security/rate-limit environment variables
 
 - `ADMIN_PASSWORD`: password for admin session login.
+- `CLOUDINARY_URL`: Cloudinary backend credentials in the form `cloudinary://API_KEY:API_SECRET@CLOUD_NAME`.
 - `RESERVE_RATE_LIMIT`: DRF throttle rate for reserve endpoint (`10/hour` default).
 - `COMMENT_RATE_LIMIT`: DRF throttle rate for comment creation endpoint (`20/hour` default).
 - `CORS_ALLOWED_ORIGINS`: comma-separated frontend origins allowed to send credentialed requests.

@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 
+import cloudinary
 import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -109,3 +110,6 @@ CORS_ALLOWED_ORIGINS = [
     if origin.strip()
 ]
 CORS_ALLOW_CREDENTIALS = True
+
+if os.environ.get("CLOUDINARY_URL"):
+    cloudinary.config(secure=True)

@@ -1,7 +1,7 @@
 import hmac
 import os
 
-from django.core.files.storage import default_storage
+import cloudinary.uploader
 from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404
 from rest_framework import status
@@ -175,6 +175,12 @@ class AdminWishlistItemImagesUploadView(APIView):
     parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request, item_id: int):
+        if not os.environ.get("CLOUDINARY_URL"):
+            return error_response(
+                "Image uploads are not configured.",
+                status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
         item = get_object_or_404(WishlistItem, pk=item_id)
         files = request.FILES.getlist("images")
         if not files:
@@ -214,13 +220,28 @@ class AdminWishlistItemImagesUploadView(APIView):
                     "Only image files are allowed.",
                     status.HTTP_400_BAD_REQUEST,
                 )
-            file_path = default_storage.save(
-                f"wishlist-images/{item.id}/{upload.name}",
-                upload,
-            )
-            uploaded_urls.append(
-                request.build_absolute_uri(default_storage.url(file_path))
-            )
+            try:
+                result = cloudinary.uploader.upload(
+                    upload,
+                    resource_type="image",
+                    folder=f"wishlist-images/{item.id}",
+                    use_filename=True,
+                    unique_filename=True,
+                )
+            except Exception:
+                return error_response(
+                    "Image upload failed.",
+                    status.HTTP_502_BAD_GATEWAY,
+                )
+
+            uploaded_url = result.get("secure_url")
+            if not isinstance(uploaded_url, str) or not uploaded_url:
+                return error_response(
+                    "Image upload failed.",
+                    status.HTTP_502_BAD_GATEWAY,
+                )
+
+            uploaded_urls.append(uploaded_url)
 
         if not persist_metadata:
             return Response({"urls": uploaded_urls}, status=status.HTTP_200_OK)
