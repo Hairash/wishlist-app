@@ -46,9 +46,9 @@ button {
   padding: 0.45rem 0.8rem;
   cursor: pointer;
   border-radius: 999px;
-  border: 1px solid #bfd3ff;
-  background-color: #edf3ff;
-  color: #1f3c88;
+  border: 2px solid #3e63c9;
+  background-color: #d4e2ff;
+  color: #173578;
   font-weight: 600;
 }
 
@@ -85,10 +85,6 @@ button {
   justify-content: space-between;
   gap: 0.75rem;
   align-items: center;
-}
-
-.no-comments {
-  margin: 0 0 0.6rem;
 }
 
 .item-images {

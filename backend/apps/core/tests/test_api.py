@@ -43,6 +43,21 @@ def test_reservation_is_persisted_and_visible() -> None:
 
 
 @pytest.mark.django_db
+def test_actions_cookie_is_site_wide_for_reload_undo_support() -> None:
+    item = WishlistItem.objects.create(title="Speakers")
+    client = APIClient()
+
+    reserve_response = client.post(
+        f"/api/wishlist-items/{item.id}/reserve/",
+        {"reserved_by_name": "Alex"},
+        format="json",
+    )
+
+    assert reserve_response.status_code == 201
+    assert reserve_response.cookies["wishlist_actions"]["path"] == "/"
+
+
+@pytest.mark.django_db
 def test_reservation_can_only_be_created_once() -> None:
     item = WishlistItem.objects.create(title="Headphones")
     client = APIClient()

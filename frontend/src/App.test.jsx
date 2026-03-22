@@ -44,6 +44,7 @@ describe('App', () => {
     expect(screen.getByText('Great')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Reserve' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Add comment' })).toBeInTheDocument();
+    expect(screen.queryByText('No comments yet.')).not.toBeInTheDocument();
   });
 
   test('supports reserve flow and updates reservation label', async () => {
