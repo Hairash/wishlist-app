@@ -131,6 +131,11 @@ function ItemCard({ item, comments, commentsLoading, commentsError, onReserve, o
     }
   }
 
+  function handleOpenComments() {
+    setIsCommentsDialogOpen(true);
+    onLoadComments(item.id);
+  }
+
   async function handleCommentSubmit(event) {
     event.preventDefault();
     setCommentState({ status: 'loading', message: '' });
