@@ -47,6 +47,7 @@ def write_actions_cookie(response, actions: dict[str, list[int]]) -> None:
     response.set_cookie(
         COOKIE_NAME,
         encoded,
+        path="/",
         max_age=COOKIE_MAX_AGE,
         httponly=True,
         samesite="Lax",

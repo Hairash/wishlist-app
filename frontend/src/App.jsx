@@ -210,7 +210,6 @@ function ItemCard({
           </ul>
         ) : null}
 
-        {!commentsLoading && comments.length === 0 ? <p className="no-comments">No comments yet.</p> : null}
         {item.comments_enabled ? (
           <button type="button" onClick={() => setIsCommentFormDialogOpen(true)} className="button-pill">
             Add comment
