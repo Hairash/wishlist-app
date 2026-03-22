@@ -3,6 +3,7 @@ import os
 
 import cloudinary.uploader
 from django.db import IntegrityError, transaction
+from django.db.models import Count
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.parsers import FormParser, MultiPartParser
@@ -72,8 +73,10 @@ class WishlistItemsPublicView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-        queryset = WishlistItem.objects.filter(is_visible_public=True).select_related(
-            "reservation"
+        queryset = (
+            WishlistItem.objects.filter(is_visible_public=True)
+            .select_related("reservation")
+            .annotate(comments_count=Count("comments"))
         )
         serializer = WishlistItemPublicSerializer(queryset, many=True)
         return Response(serializer.data)
