@@ -22,12 +22,6 @@ body {
   margin-bottom: 1rem;
 }
 
-.item-section {
-  margin-top: 1rem;
-  border-top: 1px solid #e8edf3;
-  padding-top: 0.75rem;
-}
-
 .markdown p {
   margin: 0.4rem 0;
 }
@@ -57,11 +51,35 @@ button {
   display: flex;
   gap: 0.75rem;
   align-items: center;
+  justify-content: space-between;
 }
 
-.comments-list,
-.item-links {
+.comments-list {
   padding-left: 1.1rem;
+}
+
+.comments-preview {
+  margin-top: 0.85rem;
+}
+
+.comment-blocks {
+  list-style: none;
+  margin: 0 0 0.6rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.comment-pill {
+  background-color: #edf3ff;
+  color: #1f3c88;
+  border-radius: 10px;
+  padding: 0.45rem 0.6rem;
+}
+
+.no-comments {
+  margin: 0 0 0.6rem;
 }
 
 .item-images {
@@ -89,4 +107,60 @@ button {
 .admin-actions {
   display: flex;
   gap: 0.75rem;
+}
+
+.item-card-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.item-card-header h2 {
+  margin: 0;
+}
+
+.item-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.item-card-actions button {
+  margin: 0;
+}
+
+.comment-count,
+.reservation-pill {
+  background-color: #edf3ff;
+  color: #1f3c88;
+  border-radius: 999px;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(23, 33, 43, 0.45);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 1rem;
+  z-index: 5;
+}
+
+.modal-content {
+  width: min(560px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 1rem;
+}
+
+.dialog-actions {
+  display: flex;
+  gap: 0.5rem;
 }

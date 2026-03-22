@@ -29,21 +29,24 @@ describe('App', () => {
             id: 1,
             title: 'Coffee Grinder',
             content_markdown: '**Great** for espresso',
-            metadata: { links: ['https://example.com'] },
+            metadata: {},
             reservation: null,
             comments_enabled: true,
+            comments_count: 0,
           },
         ]),
-      );
+      )
+      .mockResolvedValueOnce(createJsonResponse([]));
 
     render(<App />);
 
     expect(await screen.findByRole('heading', { name: 'Coffee Grinder' })).toBeInTheDocument();
     expect(screen.getByText('Great')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'https://example.com' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reserve' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add comment' })).toBeInTheDocument();
   });
 
-  test('supports reserve flow and updates reservation status', async () => {
+  test('supports reserve flow and updates reservation label', async () => {
     globalThis.fetch
       .mockResolvedValueOnce(createJsonResponse({ is_authenticated: false }))
       .mockResolvedValueOnce(
@@ -55,9 +58,11 @@ describe('App', () => {
             metadata: {},
             reservation: null,
             comments_enabled: true,
+            comments_count: 0,
           },
         ]),
       )
+      .mockResolvedValueOnce(createJsonResponse([]))
       .mockResolvedValueOnce(
         createJsonResponse({
           id: 2,
@@ -66,20 +71,56 @@ describe('App', () => {
           metadata: {},
           reservation: { reserved_by_name: 'Alex' },
           comments_enabled: true,
+          comments_count: 0,
         }, true, 201),
       );
 
     render(<App />);
 
     await screen.findByRole('heading', { name: 'Headphones' });
-    fireEvent.change(screen.getByLabelText('Your name (optional)'), { target: { value: 'Alex' } });
+    await screen.findByRole('button', { name: 'Reserve' });
     fireEvent.click(screen.getByRole('button', { name: 'Reserve' }));
+    fireEvent.change(screen.getByLabelText('Your name (optional)'), { target: { value: 'Alex' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm reserve' }));
 
-    await screen.findByText('Reserved by Alex');
+    await screen.findByText('Reserved: Alex');
     expect(globalThis.fetch).toHaveBeenCalledWith(
       '/api/wishlist-items/2/reserve/',
       expect.objectContaining({ method: 'POST', credentials: 'include' }),
     );
+  });
+
+  test('shows comments on card and opens add comment dialog', async () => {
+    globalThis.fetch
+      .mockResolvedValueOnce(createJsonResponse({ is_authenticated: false }))
+      .mockResolvedValueOnce(
+        createJsonResponse([
+          {
+            id: 3,
+            title: 'Laptop Stand',
+            content_markdown: 'Aluminum stand',
+            metadata: {},
+            reservation: null,
+            comments_enabled: true,
+            comments_count: 2,
+          },
+        ]),
+      )
+      .mockResolvedValueOnce(
+        createJsonResponse([
+          { id: 11, author_name: 'Sam', text: 'Looks great!' },
+          { id: 12, author_name: '', text: 'Interested' },
+        ]),
+      );
+
+    render(<App />);
+
+    await screen.findByRole('heading', { name: 'Laptop Stand' });
+    expect(screen.getByText('2 comments')).toBeInTheDocument();
+    expect(screen.getByText(/Sam:/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Add comment' }));
+
+    expect(await screen.findByText('Add comment: Laptop Stand')).toBeInTheDocument();
   });
 
   test('supports admin login and protected admin route', async () => {
@@ -135,6 +176,7 @@ describe('App', () => {
             metadata: {},
             reservation: null,
             comments_enabled: true,
+            comments_count: 0,
           },
         ]),
       )
