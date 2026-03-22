@@ -180,10 +180,26 @@ class AdminWishlistItemImagesUploadView(APIView):
         if not files:
             return error_response("Please provide at least one image file.", 400)
 
+        persist_metadata = str(
+            request.data.get("persist_metadata", "true")
+        ).lower() not in {
+            "0",
+            "false",
+            "no",
+        }
+
         metadata = item.metadata if isinstance(item.metadata, dict) else {}
-        existing_images = metadata.get("images", [])
-        if not isinstance(existing_images, list):
-            existing_images = []
+        if persist_metadata:
+            existing_images = metadata.get("images", [])
+            if not isinstance(existing_images, list):
+                existing_images = []
+        else:
+            try:
+                existing_image_count = int(request.data.get("existing_image_count", 0))
+            except (TypeError, ValueError):
+                return error_response("Invalid existing image count.", 400)
+
+            existing_images = [None] * max(existing_image_count, 0)
 
         if len(existing_images) + len(files) > 5:
             return error_response(
@@ -205,6 +221,9 @@ class AdminWishlistItemImagesUploadView(APIView):
             uploaded_urls.append(
                 request.build_absolute_uri(default_storage.url(file_path))
             )
+
+        if not persist_metadata:
+            return Response({"urls": uploaded_urls}, status=status.HTTP_200_OK)
 
         item.metadata = {**metadata, "images": [*existing_images, *uploaded_urls]}
         item.save(update_fields=["metadata", "updated_at"])

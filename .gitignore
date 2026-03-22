@@ -6,6 +6,7 @@ __pycache__/
 *.egg
 .pytest_cache/
 .venv/
+backend/media/
 
 # Node
 node_modules/

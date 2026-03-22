@@ -72,7 +72,10 @@ button {
 
 .item-images img {
   width: 180px;
+  height: 180px;
   max-width: 100%;
+  object-fit: contain;
+  object-position: center;
   border-radius: 8px;
 }
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
 
@@ -86,6 +86,20 @@ async function requestJson(url, options) {
   }
 
   return payload;
+}
+
+function parseMetadataDraft(metadataText) {
+  const parsed = JSON.parse(metadataText || '{}');
+
+  if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
+    throw new Error('Metadata JSON must be an object.');
+  }
+
+  if (parsed.images !== undefined && !Array.isArray(parsed.images)) {
+    throw new Error('Metadata JSON "images" must be an array.');
+  }
+
+  return parsed;
 }
 
 function ItemCard({ item, comments, commentsLoading, commentsError, onReserve, onLoadComments, onCreateComment }) {
@@ -244,7 +258,8 @@ function PublicWishlistView() {
       try {
         const data = await requestJson(`${API_BASE}/wishlist-items/`);
         if (alive) {
-          setItems(data);
+          setItems(Array.isArray(data) ? data : []);
+          setError(Array.isArray(data) ? '' : 'Unexpected wishlist API response.');
         }
       } catch (loadError) {
         if (alive) {
@@ -345,8 +360,8 @@ function AdminPanel({ onLogout }) {
   async function loadItems() {
     try {
       const payload = await requestJson(`${API_BASE}/admin/wishlist-items/`);
-      setItems(payload);
-      setError('');
+      setItems(Array.isArray(payload) ? payload : []);
+      setError(Array.isArray(payload) ? '' : 'Unexpected admin API response.');
     } catch (loadError) {
       setError(loadError.message);
     } finally {
@@ -385,10 +400,6 @@ function AdminPanel({ onLogout }) {
     setItems((current) => current.filter((item) => item.id !== itemId));
   }
 
-  function replaceItem(updated) {
-    setItems((current) => current.map((item) => (item.id === updated.id ? updated : item)));
-  }
-
   return (
     <>
       <div className="admin-header">
@@ -409,22 +420,29 @@ function AdminPanel({ onLogout }) {
 
       {loading ? <p>Loading admin items...</p> : null}
       {items.map((item) => (
-        <AdminItemEditor key={item.id} item={item} onUpdate={updateItem} onReplace={replaceItem} onDelete={deleteItem} />
+        <AdminItemEditor key={item.id} item={item} onUpdate={updateItem} onDelete={deleteItem} />
       ))}
     </>
   );
 }
 
-function AdminItemEditor({ item, onUpdate, onReplace, onDelete }) {
+function AdminItemEditor({ item, onUpdate, onDelete }) {
   const [draft, setDraft] = useState({
     title: item.title,
     content_markdown: item.content_markdown,
     metadata: JSON.stringify(item.metadata ?? {}, null, 2),
   });
-  const [imageFiles, setImageFiles] = useState([]);
+  const imageInputRef = useRef(null);
   const [imageUploadState, setImageUploadState] = useState({ status: 'idle', message: '' });
-  const existingImageCount = Array.isArray(item.metadata?.images) ? item.metadata.images.length : 0;
-  const remainingImageSlots = Math.max(0, 5 - existingImageCount);
+
+  let remainingImageSlots = 5;
+  try {
+    const metadata = parseMetadataDraft(draft.metadata);
+    const currentImageCount = Array.isArray(metadata.images) ? metadata.images.length : 0;
+    remainingImageSlots = Math.max(0, 5 - currentImageCount);
+  } catch {
+    remainingImageSlots = 5;
+  }
 
   async function handleSave(event) {
     event.preventDefault();
@@ -435,13 +453,24 @@ function AdminItemEditor({ item, onUpdate, onReplace, onDelete }) {
     });
   }
 
-  async function handleUploadImages(event) {
-    event.preventDefault();
-    if (imageFiles.length === 0) {
-      setImageUploadState({ status: 'error', message: 'Choose at least one image first.' });
+  async function handleImageSelection(event) {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = '';
+
+    if (files.length === 0) {
       return;
     }
-    if (imageFiles.length > remainingImageSlots) {
+
+    let metadata;
+    try {
+      metadata = parseMetadataDraft(draft.metadata);
+    } catch (error) {
+      setImageUploadState({ status: 'error', message: error.message });
+      return;
+    }
+
+    const existingImages = Array.isArray(metadata.images) ? metadata.images : [];
+    if (existingImages.length + files.length > 5) {
       setImageUploadState({
         status: 'error',
         message: `You can upload ${remainingImageSlots} more image(s) for this item.`,
@@ -450,21 +479,37 @@ function AdminItemEditor({ item, onUpdate, onReplace, onDelete }) {
     }
 
     const formData = new FormData();
-    imageFiles.forEach((file) => formData.append('images', file));
+    files.forEach((file) => formData.append('images', file));
+    formData.append('persist_metadata', 'false');
+    formData.append('existing_image_count', String(existingImages.length));
 
     setImageUploadState({ status: 'loading', message: '' });
     try {
-      const updated = await requestJson(`${API_BASE}/admin/wishlist-items/${item.id}/images/`, {
+      const payload = await requestJson(`${API_BASE}/admin/wishlist-items/${item.id}/images/`, {
         method: 'POST',
         body: formData,
       });
-      onReplace(updated);
-      setDraft((current) => ({ ...current, metadata: JSON.stringify(updated.metadata ?? {}, null, 2) }));
-      setImageFiles([]);
-      setImageUploadState({ status: 'success', message: 'Images uploaded.' });
+      const uploadedUrls = Array.isArray(payload?.urls) ? payload.urls : [];
+      setDraft((current) => {
+        const currentMetadata = parseMetadataDraft(current.metadata);
+        const currentImages = Array.isArray(currentMetadata.images) ? currentMetadata.images : [];
+        return {
+          ...current,
+          metadata: JSON.stringify(
+            { ...currentMetadata, images: [...currentImages, ...uploadedUrls] },
+            null,
+            2,
+          ),
+        };
+      });
+      setImageUploadState({ status: 'success', message: 'Images added to metadata.' });
     } catch (uploadError) {
       setImageUploadState({ status: 'error', message: uploadError.message });
     }
+  }
+
+  function handleUploadButtonClick() {
+    imageInputRef.current?.click();
   }
 
   return (
@@ -476,18 +521,18 @@ function AdminItemEditor({ item, onUpdate, onReplace, onDelete }) {
       <textarea id={`markdown-${item.id}`} value={draft.content_markdown} onChange={(event) => setDraft((current) => ({ ...current, content_markdown: event.target.value }))} />
       <label htmlFor={`metadata-${item.id}`}>Metadata JSON</label>
       <textarea id={`metadata-${item.id}`} value={draft.metadata} onChange={(event) => setDraft((current) => ({ ...current, metadata: event.target.value }))} />
-      <p>Attached images: {existingImageCount}/5</p>
-      <label htmlFor={`images-${item.id}`}>Upload images (max {remainingImageSlots} more)</label>
       <input
         id={`images-${item.id}`}
         type="file"
         accept="image/*"
         multiple
-        onChange={(event) => setImageFiles(Array.from(event.target.files ?? []))}
+        ref={imageInputRef}
+        onChange={handleImageSelection}
+        style={{ display: 'none' }}
       />
       <div className="admin-actions">
         <button type="submit">Save</button>
-        <button type="button" onClick={handleUploadImages} disabled={imageUploadState.status === 'loading' || remainingImageSlots === 0}>
+        <button type="button" onClick={handleUploadButtonClick} disabled={imageUploadState.status === 'loading' || remainingImageSlots === 0}>
           {imageUploadState.status === 'loading' ? 'Uploading...' : 'Upload image(s)'}
         </button>
         <button type="button" onClick={() => onDelete(item.id)}>Delete</button>
@@ -554,8 +599,9 @@ export function App() {
     async function checkSession() {
       try {
         const payload = await requestJson(`${API_BASE}/admin/session/`);
-        setIsAdminAuthenticated(payload.is_authenticated === true);
-        if (payload.is_authenticated === true && window.location.pathname === '/') {
+        const isAuthenticated = payload?.is_authenticated === true;
+        setIsAdminAuthenticated(isAuthenticated);
+        if (isAuthenticated && window.location.pathname === '/') {
           navigate('/admin', true);
         }
       } finally {

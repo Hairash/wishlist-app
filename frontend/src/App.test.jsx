@@ -122,4 +122,52 @@ describe('App', () => {
     });
   });
 
+  test('adds uploaded image URLs into metadata JSON immediately after file selection', async () => {
+    window.history.replaceState({}, '', '/admin');
+    globalThis.fetch
+      .mockResolvedValueOnce(createJsonResponse({ is_authenticated: true }))
+      .mockResolvedValueOnce(
+        createJsonResponse([
+          {
+            id: 1,
+            title: 'Camera',
+            content_markdown: 'Mirrorless',
+            metadata: {},
+            reservation: null,
+            comments_enabled: true,
+          },
+        ]),
+      )
+      .mockResolvedValueOnce(
+        createJsonResponse({
+          urls: ['https://example.com/image-1.jpg'],
+        }),
+      );
+
+    render(<App />);
+
+    await screen.findByRole('heading', { name: 'Admin Wishlist Manager' });
+    expect(screen.queryByText(/Attached images:/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Upload image(s)' }));
+    const input = document.querySelector('#images-1');
+    const file = new File(['image-bytes'], 'camera.jpg', { type: 'image/jpeg' });
+    fireEvent.change(input, { target: { files: [file] } });
+
+    await waitFor(() => {
+      expect(screen.getAllByLabelText('Metadata JSON')[1]).toHaveValue(
+        '{\n  "images": [\n    "https://example.com/image-1.jpg"\n  ]\n}',
+      );
+    });
+
+    expect(globalThis.fetch).toHaveBeenLastCalledWith(
+      '/api/admin/wishlist-items/1/images/',
+      expect.objectContaining({
+        method: 'POST',
+        body: expect.any(FormData),
+      }),
+    );
+    expect(screen.getByText('Images added to metadata.')).toBeInTheDocument();
+  });
+
 });

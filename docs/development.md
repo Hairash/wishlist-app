@@ -35,4 +35,5 @@ npm run dev
 ### Frontend environment variables
 
 - `VITE_API_BASE_URL`: API base URL used by the frontend (`/api` default for local/same-origin setups).
+- `VITE_DEV_PROXY_TARGET`: optional Vite dev proxy target for local backend requests (`http://127.0.0.1:8000` default).
 - No frontend-side admin password storage or auth token env var is required.
