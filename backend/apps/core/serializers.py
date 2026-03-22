@@ -24,6 +24,7 @@ class CommentSerializer(serializers.ModelSerializer):
 
 class WishlistItemPublicSerializer(serializers.ModelSerializer):
     reservation = serializers.SerializerMethodField()
+    comments_count = serializers.SerializerMethodField()
 
     class Meta:
         model = WishlistItem
@@ -38,6 +39,7 @@ class WishlistItemPublicSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
             "reservation",
+            "comments_count",
         ]
 
     def get_reservation(self, obj: WishlistItem):
@@ -45,6 +47,12 @@ class WishlistItemPublicSerializer(serializers.ModelSerializer):
         if not reservation or not obj.reservations_visible_public:
             return None
         return ReservationSerializer(reservation).data
+
+    def get_comments_count(self, obj: WishlistItem):
+        annotated_count = getattr(obj, "comments_count", None)
+        if isinstance(annotated_count, int):
+            return annotated_count
+        return obj.comments.count()
 
 
 class WishlistItemAdminSerializer(serializers.ModelSerializer):

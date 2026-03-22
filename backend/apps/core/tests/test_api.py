@@ -91,6 +91,19 @@ def test_comments_creation_and_listing() -> None:
 
 
 @pytest.mark.django_db
+def test_public_items_include_comments_count() -> None:
+    item = WishlistItem.objects.create(title="Console")
+    Comment.objects.create(item=item, text="Nice")
+    Comment.objects.create(item=item, text="I can gift this")
+    client = APIClient()
+
+    response = client.get("/api/wishlist-items/")
+
+    assert response.status_code == 200
+    assert response.json()[0]["comments_count"] == 2
+
+
+@pytest.mark.django_db
 def test_admin_crud_requires_authenticated_session() -> None:
     item = WishlistItem.objects.create(title="Tripod")
     client = APIClient()

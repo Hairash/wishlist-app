@@ -103,33 +103,37 @@ function parseMetadataDraft(metadataText) {
 }
 
 function ItemCard({ item, comments, commentsLoading, commentsError, onReserve, onLoadComments, onCreateComment }) {
-  const [name, setName] = useState('');
+  const [reservationName, setReservationName] = useState('');
   const [commentAuthor, setCommentAuthor] = useState('');
   const [commentText, setCommentText] = useState('');
+  const [isReserveDialogOpen, setIsReserveDialogOpen] = useState(false);
+  const [isCommentsDialogOpen, setIsCommentsDialogOpen] = useState(false);
   const [reserveState, setReserveState] = useState({ status: 'idle', message: '' });
   const [commentState, setCommentState] = useState({ status: 'idle', message: '' });
 
-  const reservationLabel = item.reservation
-    ? `Reserved by ${item.reservation.reserved_by_name || 'Anonymous'}`
-    : 'Available';
-
-  const links = Array.isArray(item.metadata?.links) ? item.metadata.links : [];
   const images = Array.isArray(item.metadata?.images) ? item.metadata.images : [];
+  const commentCount = Number.isInteger(item.comments_count) ? item.comments_count : 0;
 
   async function handleReserve(event) {
     event.preventDefault();
     setReserveState({ status: 'loading', message: '' });
 
     try {
-      const updatedItem = await onReserve(item.id, name);
+      const updatedItem = await onReserve(item.id, reservationName);
       setReserveState({
         status: 'success',
         message: updatedItem.reservation?.reserved_by_name ? `Reserved by ${updatedItem.reservation.reserved_by_name}` : 'Reserved anonymously',
       });
-      setName('');
+      setReservationName('');
+      setIsReserveDialogOpen(false);
     } catch (error) {
       setReserveState({ status: 'error', message: error.message });
     }
+  }
+
+  function handleOpenComments() {
+    setIsCommentsDialogOpen(true);
+    onLoadComments(item.id);
   }
 
   async function handleCommentSubmit(event) {
@@ -151,7 +155,23 @@ function ItemCard({ item, comments, commentsLoading, commentsError, onReserve, o
 
   return (
     <article className="item-card">
-      <h2>{item.title}</h2>
+      <div className="item-card-header">
+        <h2>{item.title}</h2>
+        <div className="item-card-actions">
+          {item.reservation ? (
+            <span className="reservation-pill">Reserved: {item.reservation.reserved_by_name || 'Anonymous'}</span>
+          ) : (
+            <button type="button" onClick={() => setIsReserveDialogOpen(true)}>
+              Reserve
+            </button>
+          )}
+          <button type="button" onClick={handleOpenComments}>
+            Comment
+          </button>
+          {commentCount > 0 ? <span className="comment-count">{commentCount}</span> : null}
+        </div>
+      </div>
+
       <div className="markdown">{renderSafeMarkdown(item.content_markdown)}</div>
 
       {images.length > 0 && (
@@ -162,86 +182,81 @@ function ItemCard({ item, comments, commentsLoading, commentsError, onReserve, o
         </div>
       )}
 
-      {links.length > 0 && (
-        <ul className="item-links">
-          {links.map((link) => (
-            <li key={link}>
-              <a href={link} target="_blank" rel="noreferrer">
-                {link}
-              </a>
-            </li>
-          ))}
-        </ul>
+      {reserveState.message && <p role="status">{reserveState.message}</p>}
+
+      {isReserveDialogOpen && (
+        <div className="modal-backdrop" role="presentation">
+          <div className="modal-content" role="dialog" aria-modal="true" aria-labelledby={`reserve-title-${item.id}`}>
+            <h3 id={`reserve-title-${item.id}`}>Reserve: {item.title}</h3>
+            <form onSubmit={handleReserve}>
+              <label htmlFor={`reserve-name-${item.id}`}>Your name (optional)</label>
+              <input
+                id={`reserve-name-${item.id}`}
+                value={reservationName}
+                onChange={(event) => setReservationName(event.target.value)}
+                placeholder="Anonymous"
+              />
+              <div className="dialog-actions">
+                <button type="submit" disabled={reserveState.status === 'loading'}>
+                  {reserveState.status === 'loading' ? 'Reserving...' : 'Confirm reserve'}
+                </button>
+                <button type="button" onClick={() => setIsReserveDialogOpen(false)}>Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
-      <section className="item-section">
-        <h3>Reservation</h3>
-        <p aria-label={`Reservation status for ${item.title}`}>{reservationLabel}</p>
-        {!item.reservation && (
-          <form onSubmit={handleReserve}>
-            <label htmlFor={`reserve-name-${item.id}`}>Your name (optional)</label>
-            <input
-              id={`reserve-name-${item.id}`}
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder="Anonymous"
-            />
-            <button type="submit" disabled={reserveState.status === 'loading'}>
-              {reserveState.status === 'loading' ? 'Reserving...' : 'Reserve'}
-            </button>
-          </form>
-        )}
-        {reserveState.message && <p role="status">{reserveState.message}</p>}
-      </section>
+      {isCommentsDialogOpen && (
+        <div className="modal-backdrop" role="presentation">
+          <div className="modal-content" role="dialog" aria-modal="true" aria-labelledby={`comments-title-${item.id}`}>
+            <div className="comments-heading">
+              <h3 id={`comments-title-${item.id}`}>Comments: {item.title}</h3>
+              <button type="button" onClick={() => setIsCommentsDialogOpen(false)}>Close</button>
+            </div>
 
-      <section className="item-section">
-        <div className="comments-heading">
-          <h3>Comments</h3>
-          <button type="button" onClick={() => onLoadComments(item.id)}>
-            Refresh comments
-          </button>
+            {commentsLoading ? <p>Loading comments...</p> : null}
+            {commentsError ? <p role="alert">{commentsError}</p> : null}
+
+            {!commentsLoading && comments.length === 0 && <p>No comments yet.</p>}
+            {comments.length > 0 && (
+              <ul className="comments-list">
+                {comments.map((comment) => (
+                  <li key={comment.id}>
+                    <strong>{comment.author_name || 'Anonymous'}:</strong> {comment.text}
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {item.comments_enabled ? (
+              <form onSubmit={handleCommentSubmit}>
+                <label htmlFor={`comment-author-${item.id}`}>Name (optional)</label>
+                <input
+                  id={`comment-author-${item.id}`}
+                  value={commentAuthor}
+                  onChange={(event) => setCommentAuthor(event.target.value)}
+                />
+
+                <label htmlFor={`comment-text-${item.id}`}>Comment</label>
+                <textarea
+                  id={`comment-text-${item.id}`}
+                  required
+                  value={commentText}
+                  onChange={(event) => setCommentText(event.target.value)}
+                />
+
+                <button type="submit" disabled={commentState.status === 'loading'}>
+                  {commentState.status === 'loading' ? 'Posting...' : 'Post comment'}
+                </button>
+              </form>
+            ) : (
+              <p>Comments are disabled for this item.</p>
+            )}
+            {commentState.message && <p role="status">{commentState.message}</p>}
+          </div>
         </div>
-
-        {commentsLoading ? <p>Loading comments...</p> : null}
-        {commentsError ? <p role="alert">{commentsError}</p> : null}
-
-        {!commentsLoading && comments.length === 0 && <p>No comments yet.</p>}
-        {comments.length > 0 && (
-          <ul className="comments-list">
-            {comments.map((comment) => (
-              <li key={comment.id}>
-                <strong>{comment.author_name || 'Anonymous'}:</strong> {comment.text}
-              </li>
-            ))}
-          </ul>
-        )}
-
-        {item.comments_enabled ? (
-          <form onSubmit={handleCommentSubmit}>
-            <label htmlFor={`comment-author-${item.id}`}>Name (optional)</label>
-            <input
-              id={`comment-author-${item.id}`}
-              value={commentAuthor}
-              onChange={(event) => setCommentAuthor(event.target.value)}
-            />
-
-            <label htmlFor={`comment-text-${item.id}`}>Comment</label>
-            <textarea
-              id={`comment-text-${item.id}`}
-              required
-              value={commentText}
-              onChange={(event) => setCommentText(event.target.value)}
-            />
-
-            <button type="submit" disabled={commentState.status === 'loading'}>
-              {commentState.status === 'loading' ? 'Posting...' : 'Post comment'}
-            </button>
-          </form>
-        ) : (
-          <p>Comments are disabled for this item.</p>
-        )}
-        {commentState.message && <p role="status">{commentState.message}</p>}
-      </section>
+      )}
     </article>
   );
 }
@@ -284,6 +299,9 @@ function PublicWishlistView() {
     try {
       const comments = await requestJson(`${API_BASE}/wishlist-items/${itemId}/comments/`);
       setCommentsByItem((current) => ({ ...current, [itemId]: { list: comments, loading: false, error: '' } }));
+      setItems((current) =>
+        current.map((item) => (item.id === itemId ? { ...item, comments_count: comments.length } : item)),
+      );
     } catch (loadError) {
       setCommentsByItem((current) => ({
         ...current,
@@ -319,6 +337,15 @@ function PublicWishlistView() {
         },
       };
     });
+    setItems((current) =>
+      current.map((item) => {
+        if (item.id !== itemId) {
+          return item;
+        }
+        const existingCount = Number.isInteger(item.comments_count) ? item.comments_count : 0;
+        return { ...item, comments_count: existingCount + 1 };
+      }),
+    );
   }
 
   if (loading) {
