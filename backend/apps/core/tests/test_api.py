@@ -86,8 +86,84 @@ def test_comments_creation_and_listing() -> None:
             "author_name": "Mila",
             "text": "Love this pick",
             "created_at": create_response.json()["created_at"],
+            "can_undo": True,
         }
     ]
+
+
+@pytest.mark.django_db
+def test_user_can_undo_own_reservation() -> None:
+    item = WishlistItem.objects.create(title="Monitor")
+    client = APIClient()
+
+    reserve_response = client.post(
+        f"/api/wishlist-items/{item.id}/reserve/",
+        {"reserved_by_name": "Sam"},
+        format="json",
+    )
+    undo_response = client.delete(f"/api/wishlist-items/{item.id}/reserve/")
+
+    assert reserve_response.status_code == 201
+    assert undo_response.status_code == 200
+    assert undo_response.json()["reservation"] is None
+    assert not Reservation.objects.filter(item=item).exists()
+
+
+@pytest.mark.django_db
+def test_user_cannot_undo_other_users_reservation() -> None:
+    item = WishlistItem.objects.create(title="Keyboard")
+    creator_client = APIClient()
+    other_client = APIClient()
+
+    reserve_response = creator_client.post(
+        f"/api/wishlist-items/{item.id}/reserve/",
+        {"reserved_by_name": "Sam"},
+        format="json",
+    )
+    undo_response = other_client.delete(f"/api/wishlist-items/{item.id}/reserve/")
+
+    assert reserve_response.status_code == 201
+    assert undo_response.status_code == 403
+    assert Reservation.objects.filter(item=item).exists()
+
+
+@pytest.mark.django_db
+def test_user_can_undo_own_comment() -> None:
+    item = WishlistItem.objects.create(title="Books")
+    client = APIClient()
+
+    create_response = client.post(
+        f"/api/wishlist-items/{item.id}/comments/",
+        {"author_name": "Mila", "text": "Love this pick"},
+        format="json",
+    )
+    undo_response = client.delete(
+        f"/api/wishlist-items/{item.id}/comments/{create_response.json()['id']}/"
+    )
+
+    assert create_response.status_code == 201
+    assert undo_response.status_code == 204
+    assert not Comment.objects.filter(item=item).exists()
+
+
+@pytest.mark.django_db
+def test_user_cannot_undo_other_users_comment() -> None:
+    item = WishlistItem.objects.create(title="Books")
+    creator_client = APIClient()
+    other_client = APIClient()
+
+    create_response = creator_client.post(
+        f"/api/wishlist-items/{item.id}/comments/",
+        {"author_name": "Mila", "text": "Love this pick"},
+        format="json",
+    )
+    undo_response = other_client.delete(
+        f"/api/wishlist-items/{item.id}/comments/{create_response.json()['id']}/"
+    )
+
+    assert create_response.status_code == 201
+    assert undo_response.status_code == 403
+    assert Comment.objects.filter(item=item).exists()
 
 
 @pytest.mark.django_db

@@ -102,7 +102,16 @@ function parseMetadataDraft(metadataText) {
   return parsed;
 }
 
-function ItemCard({ item, comments, commentsLoading, commentsError, onReserve, onCreateComment }) {
+function ItemCard({
+  item,
+  comments,
+  commentsLoading,
+  commentsError,
+  onReserve,
+  onUndoReserve,
+  onCreateComment,
+  onUndoComment,
+}) {
   const [reservationName, setReservationName] = useState('');
   const [commentAuthor, setCommentAuthor] = useState('');
   const [commentText, setCommentText] = useState('');
@@ -155,9 +164,14 @@ function ItemCard({ item, comments, commentsLoading, commentsError, onReserve, o
         <h2>{item.title}</h2>
         <div className="item-card-actions">
           {item.reservation ? (
-            <span className="reservation-pill">Reserved: {item.reservation.reserved_by_name || 'Anonymous'}</span>
+            <>
+              <span className="reservation-pill">Reserved: {item.reservation.reserved_by_name || 'Anonymous'}</span>
+              {item.reservation.can_undo ? (
+                <button type="button" onClick={() => onUndoReserve(item.id)} className="button-pill">Undo reserve</button>
+              ) : null}
+            </>
           ) : (
-            <button type="button" onClick={() => setIsReserveDialogOpen(true)}>
+            <button type="button" onClick={() => setIsReserveDialogOpen(true)} className="button-pill">
               Reserve
             </button>
           )}
@@ -167,6 +181,14 @@ function ItemCard({ item, comments, commentsLoading, commentsError, onReserve, o
 
       <div className="markdown">{renderSafeMarkdown(item.content_markdown)}</div>
 
+      {images.length > 0 && (
+        <div className="item-images">
+          {images.map((imageUrl) => (
+            <img key={imageUrl} src={imageUrl} alt={`Preview for ${item.title}`} />
+          ))}
+        </div>
+      )}
+
       <section className="comments-preview">
         {commentsLoading ? <p>Loading comments...</p> : null}
         {commentsError ? <p role="alert">{commentsError}</p> : null}
@@ -175,7 +197,14 @@ function ItemCard({ item, comments, commentsLoading, commentsError, onReserve, o
           <ul className="comment-blocks">
             {comments.map((comment) => (
               <li key={comment.id} className="comment-pill">
-                <strong>{comment.author_name || 'Anonymous'}:</strong> {comment.text}
+                <span>
+                  <strong>{comment.author_name || 'Anonymous'}:</strong> {comment.text}
+                </span>
+                {comment.can_undo ? (
+                  <button type="button" onClick={() => onUndoComment(item.id, comment.id)} className="button-pill">
+                    Remove comment
+                  </button>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -183,21 +212,13 @@ function ItemCard({ item, comments, commentsLoading, commentsError, onReserve, o
 
         {!commentsLoading && comments.length === 0 ? <p className="no-comments">No comments yet.</p> : null}
         {item.comments_enabled ? (
-          <button type="button" onClick={() => setIsCommentFormDialogOpen(true)}>
+          <button type="button" onClick={() => setIsCommentFormDialogOpen(true)} className="button-pill">
             Add comment
           </button>
         ) : (
           <p>Comments are disabled for this item.</p>
         )}
       </section>
-
-      {images.length > 0 && (
-        <div className="item-images">
-          {images.map((imageUrl) => (
-            <img key={imageUrl} src={imageUrl} alt={`Preview for ${item.title}`} />
-          ))}
-        </div>
-      )}
 
       {reserveState.message && <p role="status">{reserveState.message}</p>}
 
@@ -351,6 +372,40 @@ function PublicWishlistView() {
         return { ...item, comments_count: existingCount + 1 };
       }),
     );
+    return comment;
+  }
+
+  async function undoReserve(itemId) {
+    const updatedItem = await requestJson(`${API_BASE}/wishlist-items/${itemId}/reserve/`, {
+      method: 'DELETE',
+    });
+    setItems((current) => current.map((item) => (item.id === itemId ? updatedItem : item)));
+  }
+
+  async function undoComment(itemId, commentId) {
+    await requestJson(`${API_BASE}/wishlist-items/${itemId}/comments/${commentId}/`, {
+      method: 'DELETE',
+    });
+    setCommentsByItem((current) => {
+      const currentList = current[itemId]?.list ?? [];
+      return {
+        ...current,
+        [itemId]: {
+          list: currentList.filter((comment) => comment.id !== commentId),
+          loading: false,
+          error: '',
+        },
+      };
+    });
+    setItems((current) =>
+      current.map((item) => {
+        if (item.id !== itemId) {
+          return item;
+        }
+        const existingCount = Number.isInteger(item.comments_count) ? item.comments_count : 0;
+        return { ...item, comments_count: Math.max(0, existingCount - 1) };
+      }),
+    );
   }
 
   if (loading) {
@@ -374,7 +429,9 @@ function PublicWishlistView() {
             commentsLoading={commentState.loading}
             commentsError={commentState.error}
             onReserve={reserveItem}
+            onUndoReserve={undoReserve}
             onCreateComment={createComment}
+            onUndoComment={undoComment}
           />
         );
       })}

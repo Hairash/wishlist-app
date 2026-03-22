@@ -7,6 +7,7 @@ from apps.core.views import (
     AdminWishlistItemImagesUploadView,
     AdminWishlistItemsView,
     HealthCheckView,
+    ItemCommentDetailView,
     ItemCommentsView,
     ReserveItemView,
     WishlistItemsPublicView,
@@ -26,6 +27,11 @@ urlpatterns = [
         "wishlist-items/<int:item_id>/comments/",
         ItemCommentsView.as_view(),
         name="wishlist-item-comments",
+    ),
+    path(
+        "wishlist-items/<int:item_id>/comments/<int:comment_id>/",
+        ItemCommentDetailView.as_view(),
+        name="wishlist-item-comment-detail",
     ),
     path("admin/session/", AdminSessionView.as_view(), name="admin-session"),
     path(
