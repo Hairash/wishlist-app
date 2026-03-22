@@ -45,6 +45,11 @@ button {
   width: auto;
   padding: 0.45rem 0.8rem;
   cursor: pointer;
+  border-radius: 999px;
+  border: 1px solid #bfd3ff;
+  background-color: #edf3ff;
+  color: #1f3c88;
+  font-weight: 600;
 }
 
 .comments-heading {
@@ -76,6 +81,10 @@ button {
   color: #1f3c88;
   border-radius: 10px;
   padding: 0.45rem 0.6rem;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
 }
 
 .no-comments {
@@ -124,6 +133,7 @@ button {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .item-card-actions button {
@@ -138,6 +148,15 @@ button {
   padding: 0.15rem 0.55rem;
   font-size: 0.85rem;
   white-space: nowrap;
+}
+
+.reservation-pill {
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.button-pill {
+  margin: 0;
 }
 
 .modal-backdrop {

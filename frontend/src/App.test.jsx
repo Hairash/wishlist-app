@@ -69,7 +69,7 @@ describe('App', () => {
           title: 'Headphones',
           content_markdown: 'Noise cancelling',
           metadata: {},
-          reservation: { reserved_by_name: 'Alex' },
+          reservation: { id: 22, reserved_by_name: 'Alex', can_undo: true },
           comments_enabled: true,
           comments_count: 0,
         }, true, 201),
@@ -88,6 +88,7 @@ describe('App', () => {
       '/api/wishlist-items/2/reserve/',
       expect.objectContaining({ method: 'POST', credentials: 'include' }),
     );
+    expect(screen.getByRole('button', { name: 'Undo reserve' })).toBeInTheDocument();
   });
 
   test('shows comments on card and opens add comment dialog', async () => {
@@ -108,8 +109,8 @@ describe('App', () => {
       )
       .mockResolvedValueOnce(
         createJsonResponse([
-          { id: 11, author_name: 'Sam', text: 'Looks great!' },
-          { id: 12, author_name: '', text: 'Interested' },
+          { id: 11, author_name: 'Sam', text: 'Looks great!', can_undo: false },
+          { id: 12, author_name: '', text: 'Interested', can_undo: false },
         ]),
       );
 
@@ -121,6 +122,56 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add comment' }));
 
     expect(await screen.findByText('Add comment: Laptop Stand')).toBeInTheDocument();
+  });
+
+  test('supports undoing reservation and comment made by same user', async () => {
+    globalThis.fetch
+      .mockResolvedValueOnce(createJsonResponse({ is_authenticated: false }))
+      .mockResolvedValueOnce(
+        createJsonResponse([
+          {
+            id: 5,
+            title: 'Desk',
+            content_markdown: 'Standing desk',
+            metadata: {},
+            reservation: { id: 50, reserved_by_name: 'Jamie', can_undo: true },
+            comments_enabled: true,
+            comments_count: 1,
+          },
+        ]),
+      )
+      .mockResolvedValueOnce(
+        createJsonResponse([{ id: 501, author_name: 'Jamie', text: 'I can get this', can_undo: true }]),
+      )
+      .mockResolvedValueOnce(
+        createJsonResponse({
+          id: 5,
+          title: 'Desk',
+          content_markdown: 'Standing desk',
+          metadata: {},
+          reservation: null,
+          comments_enabled: true,
+          comments_count: 1,
+        }),
+      )
+      .mockResolvedValueOnce(createJsonResponse(null, true, 204));
+
+    render(<App />);
+
+    await screen.findByRole('heading', { name: 'Desk' });
+    fireEvent.click(screen.getByRole('button', { name: 'Undo reserve' }));
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Reserve' })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove comment' }));
+    await waitFor(() => {
+      expect(screen.queryByText(/Jamie:/)).not.toBeInTheDocument();
+    });
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      '/api/wishlist-items/5/comments/501/',
+      expect.objectContaining({ method: 'DELETE' }),
+    );
   });
 
   test('supports admin login and protected admin route', async () => {

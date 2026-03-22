@@ -11,6 +11,12 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.core.action_cookies import (
+    read_actions_cookie,
+    user_can_undo_comment,
+    user_can_undo_reservation,
+    write_actions_cookie,
+)
 from apps.core.models import Comment, Reservation, WishlistItem
 from apps.core.permissions import HasAdminPassword
 from apps.core.serializers import (
@@ -78,7 +84,9 @@ class WishlistItemsPublicView(APIView):
             .select_related("reservation")
             .annotate(comments_count=Count("comments"))
         )
-        serializer = WishlistItemPublicSerializer(queryset, many=True)
+        serializer = WishlistItemPublicSerializer(
+            queryset, many=True, context={"request": request}
+        )
         return Response(serializer.data)
 
 
@@ -109,10 +117,48 @@ class ReserveItemView(APIView):
                 status.HTTP_409_CONFLICT,
             )
 
+        actions = read_actions_cookie(request)
+        actions["reservation_ids"] = list(
+            {
+                reservation_id
+                for reservation_id in [*actions["reservation_ids"], _reservation.id]
+            }
+        )
+
         response_data = WishlistItemPublicSerializer(
-            WishlistItem.objects.select_related("reservation").get(pk=item.id)
+            WishlistItem.objects.select_related("reservation").get(pk=item.id),
+            context={"request": request},
         ).data
-        return Response(response_data, status=status.HTTP_201_CREATED)
+        if response_data.get("reservation"):
+            response_data["reservation"]["can_undo"] = True
+        response = Response(response_data, status=status.HTTP_201_CREATED)
+        write_actions_cookie(response, actions)
+        return response
+
+    def delete(self, request, item_id: int):
+        item = get_object_or_404(WishlistItem, pk=item_id, is_visible_public=True)
+        reservation = get_object_or_404(Reservation, item=item)
+        if not user_can_undo_reservation(request, reservation.id):
+            return error_response(
+                "Only the user who reserved this item can undo reservation.",
+                status.HTTP_403_FORBIDDEN,
+            )
+
+        actions = read_actions_cookie(request)
+        actions["reservation_ids"] = [
+            reservation_id
+            for reservation_id in actions["reservation_ids"]
+            if reservation_id != reservation.id
+        ]
+        reservation.delete()
+
+        response_data = WishlistItemPublicSerializer(
+            WishlistItem.objects.select_related("reservation").get(pk=item.id),
+            context={"request": request},
+        ).data
+        response = Response(response_data, status=status.HTTP_200_OK)
+        write_actions_cookie(response, actions)
+        return response
 
 
 class ItemCommentsView(APIView):
@@ -122,7 +168,9 @@ class ItemCommentsView(APIView):
     def get(self, request, item_id: int):
         item = get_object_or_404(WishlistItem, pk=item_id, is_visible_public=True)
         comments = item.comments.all()
-        serializer = CommentSerializer(comments, many=True)
+        serializer = CommentSerializer(
+            comments, many=True, context={"request": request}
+        )
         return Response(serializer.data)
 
     def post(self, request, item_id: int):
@@ -137,8 +185,42 @@ class ItemCommentsView(APIView):
         serializer.is_valid(raise_exception=True)
 
         comment = Comment.objects.create(item=item, **serializer.validated_data)
-        output = CommentSerializer(comment)
-        return Response(output.data, status=status.HTTP_201_CREATED)
+        actions = read_actions_cookie(request)
+        actions["comment_ids"] = list(
+            {comment_id for comment_id in [*actions["comment_ids"], comment.id]}
+        )
+        output = CommentSerializer(comment, context={"request": request})
+        payload = output.data
+        payload["can_undo"] = True
+        response = Response(payload, status=status.HTTP_201_CREATED)
+        write_actions_cookie(response, actions)
+        return response
+
+
+class ItemCommentDetailView(APIView):
+    permission_classes = [AllowAny]
+
+    def delete(self, request, item_id: int, comment_id: int):
+        item = get_object_or_404(WishlistItem, pk=item_id, is_visible_public=True)
+        comment = get_object_or_404(Comment, pk=comment_id, item=item)
+
+        if not user_can_undo_comment(request, comment.id):
+            return error_response(
+                "Only the user who created this comment can undo it.",
+                status.HTTP_403_FORBIDDEN,
+            )
+
+        actions = read_actions_cookie(request)
+        actions["comment_ids"] = [
+            existing_comment_id
+            for existing_comment_id in actions["comment_ids"]
+            if existing_comment_id != comment.id
+        ]
+        comment.delete()
+
+        response = Response(status=status.HTTP_204_NO_CONTENT)
+        write_actions_cookie(response, actions)
+        return response
 
 
 class AdminWishlistItemsView(APIView):

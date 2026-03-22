@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from apps.core.action_cookies import user_can_undo_comment, user_can_undo_reservation
 from apps.core.models import Comment, Reservation, WishlistItem
 from apps.core.validators import (
     validate_markdown_content,
@@ -9,17 +10,29 @@ from apps.core.validators import (
 
 
 class ReservationSerializer(serializers.ModelSerializer):
+    can_undo = serializers.SerializerMethodField()
+
     class Meta:
         model = Reservation
-        fields = ["reserved_by_name", "created_at"]
+        fields = ["id", "reserved_by_name", "created_at", "can_undo"]
         read_only_fields = ["created_at"]
+
+    def get_can_undo(self, obj: Reservation) -> bool:
+        request = self.context.get("request")
+        return bool(request and user_can_undo_reservation(request, obj.id))
 
 
 class CommentSerializer(serializers.ModelSerializer):
+    can_undo = serializers.SerializerMethodField()
+
     class Meta:
         model = Comment
-        fields = ["id", "author_name", "text", "created_at"]
+        fields = ["id", "author_name", "text", "created_at", "can_undo"]
         read_only_fields = ["id", "created_at"]
+
+    def get_can_undo(self, obj: Comment) -> bool:
+        request = self.context.get("request")
+        return bool(request and user_can_undo_comment(request, obj.id))
 
 
 class WishlistItemPublicSerializer(serializers.ModelSerializer):
@@ -46,7 +59,7 @@ class WishlistItemPublicSerializer(serializers.ModelSerializer):
         reservation = getattr(obj, "reservation", None)
         if not reservation or not obj.reservations_visible_public:
             return None
-        return ReservationSerializer(reservation).data
+        return ReservationSerializer(reservation, context=self.context).data
 
     def get_comments_count(self, obj: WishlistItem):
         annotated_count = getattr(obj, "comments_count", None)
