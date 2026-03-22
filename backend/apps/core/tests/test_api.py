@@ -58,6 +58,23 @@ def test_actions_cookie_is_site_wide_for_reload_undo_support() -> None:
 
 
 @pytest.mark.django_db
+@override_settings(SESSION_COOKIE_SECURE=True, SESSION_COOKIE_SAMESITE="None")
+def test_actions_cookie_matches_cross_origin_session_cookie_settings() -> None:
+    item = WishlistItem.objects.create(title="Projector")
+    client = APIClient()
+
+    reserve_response = client.post(
+        f"/api/wishlist-items/{item.id}/reserve/",
+        {"reserved_by_name": "Alex"},
+        format="json",
+    )
+
+    assert reserve_response.status_code == 201
+    assert reserve_response.cookies["wishlist_actions"]["secure"]
+    assert reserve_response.cookies["wishlist_actions"]["samesite"] == "None"
+
+
+@pytest.mark.django_db
 def test_reservation_can_only_be_created_once() -> None:
     item = WishlistItem.objects.create(title="Headphones")
     client = APIClient()

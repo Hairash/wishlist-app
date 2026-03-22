@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from django.conf import settings
 from django.core import signing
 
 COOKIE_NAME = "wishlist_actions"
@@ -50,7 +51,8 @@ def write_actions_cookie(response, actions: dict[str, list[int]]) -> None:
         path="/",
         max_age=COOKIE_MAX_AGE,
         httponly=True,
-        samesite="Lax",
+        secure=settings.SESSION_COOKIE_SECURE,
+        samesite=settings.SESSION_COOKIE_SAMESITE,
     )
 
 

@@ -23,6 +23,7 @@ pytest
 - `CSRF_COOKIE_SECURE`: set `true` in production HTTPS.
 - `SESSION_COOKIE_SAMESITE`: cookie SameSite mode (`Lax` by default, `None` for cross-origin production deployments).
 - `CSRF_COOKIE_SAMESITE`: cookie SameSite mode (`Lax` by default, `None` for cross-origin production deployments).
+- The public undo flow uses an `HttpOnly` `wishlist_actions` cookie and follows the same secure/SameSite settings as the session cookie.
 
 ## Frontend
 ```bash
